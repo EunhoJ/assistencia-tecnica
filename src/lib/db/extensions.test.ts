@@ -12,46 +12,46 @@ function getHandler(modelo: "os" | "cliente", op: string) {
 }
 
 describe("softDeleteExtension", () => {
-  it("injeta deletado_em: null em findMany de os quando args.where existe", async () => {
+  it("injeta deletadoEm: null em findMany de os quando args.where existe", async () => {
     const handler = getHandler("os", "findMany");
     const query = vi.fn(async (a) => a);
     const args = { where: { status: "Recebido" } };
     await handler({ args, query });
     expect(query).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ deletado_em: null, status: "Recebido" }),
+        where: expect.objectContaining({ deletadoEm: null, status: "Recebido" }),
       }),
     );
   });
 
-  it("injeta deletado_em: null em findMany de os quando args.where está ausente", async () => {
+  it("injeta deletadoEm: null em findMany de os quando args.where está ausente", async () => {
     const handler = getHandler("os", "findMany");
     const query = vi.fn(async (a) => a);
     const args: { where?: Record<string, unknown> } = {};
     await handler({ args, query });
     expect(query).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ deletado_em: null }) }),
+      expect.objectContaining({ where: expect.objectContaining({ deletadoEm: null }) }),
     );
   });
 
-  it("permite o caller sobrescrever deletado_em (caminho Lixeira)", async () => {
+  it("permite o caller sobrescrever deletadoEm (caminho Lixeira)", async () => {
     const handler = getHandler("os", "findMany");
     const query = vi.fn(async (a) => a);
-    const args = { where: { deletado_em: { not: null } } };
+    const args = { where: { deletadoEm: { not: null } } };
     await handler({ args, query });
-    // O spread `{ deletado_em: null, ...args.where }` faz com que o valor do
-    // caller (deletado_em: { not: null }) prevaleça.
-    const callArgs = query.mock.calls[0][0] as { where: { deletado_em: unknown } };
-    expect(callArgs.where.deletado_em).toEqual({ not: null });
+    // O spread `{ deletadoEm: null, ...args.where }` faz com que o valor do
+    // caller (deletadoEm: { not: null }) prevaleça.
+    const callArgs = query.mock.calls[0][0] as { where: { deletadoEm: unknown } };
+    expect(callArgs.where.deletadoEm).toEqual({ not: null });
   });
 
-  it("injeta deletado_em: null em count de cliente", async () => {
+  it("injeta deletadoEm: null em count de cliente", async () => {
     const handler = getHandler("cliente", "count");
     const query = vi.fn(async (a) => a);
     const args = {};
     await handler({ args, query });
     expect(query).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ deletado_em: null }) }),
+      expect.objectContaining({ where: expect.objectContaining({ deletadoEm: null }) }),
     );
   });
 

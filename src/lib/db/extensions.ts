@@ -1,4 +1,4 @@
-// Extension Prisma 7 que injeta `deletado_em: null` automaticamente em todos os
+// Extension Prisma 7 que injeta `deletadoEm: null` automaticamente em todos os
 // READS dos modelos `Os` e `Cliente`. Operações `update`, `delete` e `upsert`
 // NÃO são interceptadas: a action de soft-delete (Story 2.6) faz
 // `update({ data: { deletado_em: now() } })` explicitamente.
@@ -20,23 +20,23 @@ type Handler = (params: {
 function buildHandlers(): Record<ReadOp, Handler> {
   return {
     findMany: ({ args, query }) => {
-      args.where = { deletado_em: null, ...args.where };
+      args.where = { deletadoEm: null, ...args.where };
       return query(args);
     },
     findUnique: ({ args, query }) => {
-      args.where = { ...args.where, deletado_em: null };
+      args.where = { ...args.where, deletadoEm: null };
       return query(args);
     },
     findFirst: ({ args, query }) => {
-      args.where = { deletado_em: null, ...args.where };
+      args.where = { deletadoEm: null, ...args.where };
       return query(args);
     },
     count: ({ args, query }) => {
-      args.where = { deletado_em: null, ...args.where };
+      args.where = { deletadoEm: null, ...args.where };
       return query(args);
     },
     aggregate: ({ args, query }) => {
-      args.where = { deletado_em: null, ...args.where };
+      args.where = { deletadoEm: null, ...args.where };
       return query(args);
     },
   };
