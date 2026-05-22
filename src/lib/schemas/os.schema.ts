@@ -15,6 +15,13 @@ export const criarOsSchema = z.object({
   }),
   defeitoRelatado: z.string().min(1, "Defeito é obrigatório"),
   requestId: z.string().uuid("requestId inválido"),
+  // Cliente selecionado via autocomplete (Story 1.6). String porque o id
+  // do Cliente é BigInt no DB e não serializa direto via Server Action.
+  // Opcional: form pode submeter sem ter selecionado (Cliente novo).
+  clienteIdSelecionado: z
+    .string()
+    .regex(/^\d+$/, "clienteIdSelecionado deve ser numérico")
+    .optional(),
 });
 
 // Output (após .default() aplicar): descricao é string. Use em código pós-parse.

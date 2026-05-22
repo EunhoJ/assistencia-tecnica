@@ -46,16 +46,32 @@ export async function criarOs(
       return { ok: true as const, data: visto };
     }
 
-    // Upsert manual de Cliente: schema não tem @@unique em (nome, telefone_normalizado)
+    const telefoneNormalizado = normalizarTelefone(parsed.data.cliente.telefone);
+
+    // Story 1.6: curto-circuito por clienteIdSelecionado (autocomplete).
+    // Se válido E não soft-deleted (extension filtra em findUnique),
+    // reusa o Cliente sem criar duplicata.
+    let cliente: Awaited<ReturnType<typeof tx.cliente.findUnique>> = null;
+    if (parsed.data.clienteIdSelecionado) {
+      cliente = await tx.cliente.findUnique({
+        where: { id: BigInt(parsed.data.clienteIdSelecionado) },
+      });
+      // Se null (Cliente soft-deleted entre seleção e submit, ou id inválido),
+      // cai no fallback findFirst+create abaixo — defesa silenciosa.
+    }
+
+    // Fallback: upsert manual de Cliente quando não houve seleção ou seleção
+    // perdeu validade. Schema não tem @@unique em (nome, telefone_normalizado)
     // (Open Q9 do PRD aceita duplicatas em v1). Race condition em chamadas
     // simultâneas é tolerada — single-user.
-    const telefoneNormalizado = normalizarTelefone(parsed.data.cliente.telefone);
-    let cliente = await tx.cliente.findFirst({
-      where: {
-        nome: parsed.data.cliente.nome,
-        telefoneNormalizado,
-      },
-    });
+    if (!cliente) {
+      cliente = await tx.cliente.findFirst({
+        where: {
+          nome: parsed.data.cliente.nome,
+          telefoneNormalizado,
+        },
+      });
+    }
     if (!cliente) {
       cliente = await tx.cliente.create({
         data: {

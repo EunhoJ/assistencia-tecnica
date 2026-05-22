@@ -9,3 +9,13 @@ export const clienteInlineSchema = z.object({
 });
 
 export type ClienteInlineInput = z.infer<typeof clienteInlineSchema>;
+
+// Schema de input para `buscarClientes` (Story 1.6 — autocomplete FR-11).
+// `query` é texto livre (pode conter dígitos ou letras); a action decide
+// internamente como interpretar (telefone vs nome) via normalização.
+export const buscarClientesSchema = z.object({
+  query: z.string().min(1, "query é obrigatória"),
+  limite: z.number().int().positive().max(20).default(8),
+});
+
+export type BuscarClientesInput = z.infer<typeof buscarClientesSchema>;
