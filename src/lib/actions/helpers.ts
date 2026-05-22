@@ -6,9 +6,16 @@
 
 import type { ZodError } from "zod";
 
-import { Prisma, type PrismaClient } from "@/generated/prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 
-type DbCliente = PrismaClient | Prisma.TransactionClient;
+// Aceita o singleton `db` (com extension soft-delete) OU o `tx` recebido
+// dentro de `db.$transaction(async (tx) => ...)`. Tipar precisamente os
+// dois — extension-wrapped vs bare TransactionClient — é não-trivial em
+// Prisma 7. Como esses helpers só rodam em código server trusted (Server
+// Actions chamando do app), aceitamos `any` aqui em troca de não introduzir
+// cast no callsite.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type DbCliente = any;
 
 /**
  * Converte um ZodError em `{ [campo]: primeiraMensagem }` para alimentar
