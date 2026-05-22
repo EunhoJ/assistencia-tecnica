@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 
 import { BadgePagamento } from "@/components/os/badge-pagamento";
 import { BadgeStatus } from "@/components/os/badge-status";
+import { BotaoAvancarStatus } from "@/components/os/botao-avancar-status";
 import {
   Card,
   CardContent,
@@ -96,11 +97,18 @@ export default async function OsDetalhePage({
           <CardHeader>
             <CardTitle>Status</CardTitle>
           </CardHeader>
-          <CardContent className="flex flex-col gap-2">
-            <BadgeStatus status={os.status as StatusOs} />
+          <CardContent className="flex flex-col gap-3">
+            <BadgeStatus
+              status={os.status as StatusOs}
+              className="text-base px-3 py-1"
+            />
             <p className="text-muted-foreground text-xs">
               Alterado em {formatDataHora(os.statusAlteradoEm)}
             </p>
+            <BotaoAvancarStatus
+              numero={os.numeroSequencial}
+              statusAtual={os.status as StatusOs}
+            />
           </CardContent>
         </Card>
 

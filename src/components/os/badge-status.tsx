@@ -42,11 +42,17 @@ const STATUS_DISPLAY: Record<StatusOs, { label: string; className: string }> = {
   },
 };
 
-export function BadgeStatus({ status }: { status: StatusOs }) {
-  const { label, className } = STATUS_DISPLAY[status];
+export function BadgeStatus({
+  status,
+  className,
+}: {
+  status: StatusOs;
+  className?: string;
+}) {
+  const display = STATUS_DISPLAY[status];
   return (
-    <Badge variant="outline" className={cn(className)}>
-      {label}
+    <Badge variant="outline" className={cn(display.className, className)}>
+      {display.label}
     </Badge>
   );
 }
