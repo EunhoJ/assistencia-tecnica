@@ -32,3 +32,50 @@ export function ehAtivo(s: StatusOs): boolean {
 export function ehTerminal(s: StatusOs): boolean {
   return (STATUS_TERMINAIS as readonly StatusOs[]).includes(s);
 }
+
+// ============================================================================
+// Transições (Story 2.1)
+//
+// Tabelas explícitas — fluxo `Recebido → Orçamento → Aguardando peça →
+// Consertado → Entregue`. Transições NÃO-NATURAIS (pular passos) são
+// permitidas com confirmação do operador. Cancelado/Sem_solucao NÃO
+// aparecem em nenhuma tabela — esses terminais são acessados por actions
+// dedicadas (Story 2.3), não pelo fluxo de avanço.
+// ============================================================================
+
+export const TRANSICOES_NATURAIS: Readonly<Record<StatusOs, readonly StatusOs[]>> = {
+  Recebido: ["Orcamento"],
+  Orcamento: ["Aguardando_peca"],
+  Aguardando_peca: ["Consertado"],
+  Consertado: ["Entregue"],
+  Entregue: [],
+  Cancelado: [],
+  Sem_solucao: [],
+};
+
+export const TRANSICOES_NAO_NATURAIS: Readonly<
+  Record<StatusOs, readonly StatusOs[]>
+> = {
+  Recebido: ["Aguardando_peca", "Consertado"],
+  Orcamento: ["Consertado"],
+  Aguardando_peca: ["Entregue"],
+  Consertado: [],
+  Entregue: [],
+  Cancelado: [],
+  Sem_solucao: [],
+};
+
+export function podeTransicionar(de: StatusOs, para: StatusOs): boolean {
+  return (
+    TRANSICOES_NATURAIS[de].includes(para) ||
+    TRANSICOES_NAO_NATURAIS[de].includes(para)
+  );
+}
+
+export function transicoesValidas(de: StatusOs): StatusOs[] {
+  return [...TRANSICOES_NATURAIS[de], ...TRANSICOES_NAO_NATURAIS[de]];
+}
+
+export function ehTransicaoNaoNatural(de: StatusOs, para: StatusOs): boolean {
+  return TRANSICOES_NAO_NATURAIS[de].includes(para);
+}
