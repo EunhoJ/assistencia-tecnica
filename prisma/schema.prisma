@@ -1,0 +1,101 @@
+// Schema Prisma 7 do projeto. URL movida para `prisma.config.ts` (Prisma 7).
+// Generator usa o novo provider "prisma-client" com output explícito.
+
+generator client {
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  extensions = [unaccent, pg_trgm]
+}
+
+// ============================================================================
+// Enums
+// ============================================================================
+
+enum StatusOs {
+  Recebido
+  Orcamento
+  Aguardando_peca
+  Consertado
+  Entregue
+  Cancelado
+  Sem_solucao
+
+  @@map("status_os_enum")
+}
+
+enum FormaPagamento {
+  PIX
+  Dinheiro
+  Cartao
+
+  @@map("forma_pagamento_enum")
+}
+
+enum EstadoPagamento {
+  Pago
+  Pendente
+  Sem_cobranca
+
+  @@map("estado_pagamento_enum")
+}
+
+// ============================================================================
+// Modelos
+// ============================================================================
+
+model Os {
+  id                   BigInt          @id @default(autoincrement())
+  numeroSequencial     Int             @unique @default(dbgenerated("nextval('os_numero_sequencial_seq')")) @map("numero_sequencial")
+  status               StatusOs
+  clienteId            BigInt          @map("cliente_id")
+  cliente              Cliente         @relation(fields: [clienteId], references: [id])
+  aparelhoTipo         String          @map("aparelho_tipo")
+  aparelhoDescricao    String?         @map("aparelho_descricao")
+  defeitoRelatado      String          @map("defeito_relatado")
+  valorCobradoCentavos Int?            @map("valor_cobrado_centavos")
+  formaPagamento       FormaPagamento? @map("forma_pagamento")
+  estadoPagamento      EstadoPagamento @default(Sem_cobranca) @map("estado_pagamento")
+  aprovadoEm           DateTime?       @map("aprovado_em") @db.Timestamptz
+  pagoEm               DateTime?       @map("pago_em") @db.Timestamptz
+  statusAlteradoEm     DateTime        @map("status_alterado_em") @db.Timestamptz
+  observacoes          String?
+  criadoEm             DateTime        @default(now()) @map("criado_em") @db.Timestamptz
+  deletadoEm           DateTime?       @map("deletado_em") @db.Timestamptz
+  requestId            String?         @map("request_id")
+
+  @@map("os")
+}
+
+model Cliente {
+  id                  BigInt    @id @default(autoincrement())
+  nome                String
+  telefone            String
+  telefoneNormalizado String    @map("telefone_normalizado")
+  criadoEm            DateTime  @default(now()) @map("criado_em") @db.Timestamptz
+  deletadoEm          DateTime? @map("deletado_em") @db.Timestamptz
+  os                  Os[]
+
+  @@index([telefoneNormalizado], map: "idx_cliente_telefone_normalizado")
+  @@map("cliente")
+}
+
+model Config {
+  id                Int @id @default(1)
+  limiarDiasParados Int @default(30) @map("limiar_dias_parados")
+
+  @@map("config")
+}
+
+model ActionLog {
+  requestId           String   @id @map("request_id")
+  action              String
+  payloadRespostaJson Json     @map("payload_resposta_json")
+  criadoEm            DateTime @default(now()) @map("criado_em") @db.Timestamptz
+
+  @@map("action_log")
+}
