@@ -86,10 +86,26 @@ ALTER TABLE "os" ADD CONSTRAINT "os_cliente_id_fkey" FOREIGN KEY ("cliente_id") 
 -- Apêndices manuais (Prisma 7 não cobre índices funcionais nem parciais)
 -- =============================================================================
 
+-- f_unaccent: wrapper IMMUTABLE de unaccent(). Postgres marca unaccent() como
+-- STABLE (o dicionário poderia, em teoria, mudar em runtime), e índices
+-- funcionais exigem IMMUTABLE — sem este wrapper, o CREATE INDEX abaixo falha
+-- com erro P3018 "functions in index expression must be marked IMMUTABLE".
+-- O wrapper passa a referência explícita do dicionário ('public.unaccent') e
+-- declaramos IMMUTABLE manualmente (seguro em prática — ninguém recarrega o
+-- dicionário em runtime na Neon).
+CREATE OR REPLACE FUNCTION public.f_unaccent(text)
+  RETURNS text
+  LANGUAGE sql IMMUTABLE PARALLEL SAFE STRICT
+AS $func$
+SELECT public.unaccent('public.unaccent', $1)
+$func$;
+
 -- Índice GIN funcional para busca por nome (FR-16) — case+accent-insensitive
--- via unaccent + pg_trgm. Usa gin_trgm_ops para suportar LIKE/ILIKE/% acentos.
+-- via f_unaccent + pg_trgm. Usa gin_trgm_ops para suportar LIKE/ILIKE/% acentos.
+-- Queries devem usar `lower(public.f_unaccent(nome))` na WHERE para casar com
+-- este índice (Story 1.6 + 4.1).
 CREATE INDEX "idx_cliente_nome_lower_unaccent" ON "cliente"
-  USING gin (lower(unaccent("nome")) gin_trgm_ops);
+  USING gin (lower(public.f_unaccent("nome")) gin_trgm_ops);
 
 -- Índice parcial de OSs em status ATIVO (FR-14: Aparelhos parados; FR-6 listagem)
 -- Mantém o índice pequeno (só ativas) e cobre ORDER BY status_alterado_em DESC.
