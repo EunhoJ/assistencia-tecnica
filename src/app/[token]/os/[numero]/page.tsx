@@ -8,12 +8,17 @@ import { BotaoAvancarStatus } from "@/components/os/botao-avancar-status";
 import { BotaoCancelar } from "@/components/os/botao-cancelar";
 import { BotaoMarcarAprovado } from "@/components/os/botao-marcar-aprovado";
 import { BotaoSemSolucao } from "@/components/os/botao-sem-solucao";
+import { DialogMarcarPago } from "@/components/os/dialog-marcar-pago";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import type {
+  EstadoPagamento,
+  FormaPagamento,
+} from "@/lib/domain/pagamento";
 import { ehAtivo, type StatusOs } from "@/lib/domain/status";
 import { formatDataHora } from "@/lib/format/data";
 import { formatBRL } from "@/lib/format/moeda";
@@ -159,10 +164,21 @@ export default async function OsDetalhePage({
               {os.pagoEm ? (
                 <div>
                   <span className="text-muted-foreground">Pago em: </span>
-                  <span>{formatDataHora(os.pagoEm)}</span>
+                  <span>
+                    {formatDataHora(os.pagoEm)}
+                    {os.formaPagamento
+                      ? ` via ${labelFormaPagamento(os.formaPagamento)}`
+                      : ""}
+                  </span>
                 </div>
               ) : null}
             </div>
+            <DialogMarcarPago
+              numero={os.numeroSequencial}
+              valorAtualCentavos={os.valorCobradoCentavos}
+              estadoAtual={os.estadoPagamento as EstadoPagamento}
+              formaAtual={os.formaPagamento as FormaPagamento | null}
+            />
           </CardContent>
         </Card>
 
