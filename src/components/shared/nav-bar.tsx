@@ -16,6 +16,12 @@ export function NavBar({ token }: { token: string }) {
       </Link>
       <div className="flex items-center gap-2">
         <Link
+          href={`/${token}/relatorios`}
+          className="text-muted-foreground hover:text-foreground inline-flex min-h-[44px] items-center px-3 text-sm underline-offset-4 hover:underline"
+        >
+          Relatórios
+        </Link>
+        <Link
           href={`/${token}/configuracoes`}
           className="text-muted-foreground hover:text-foreground inline-flex min-h-[44px] items-center px-3 text-sm underline-offset-4 hover:underline"
         >
