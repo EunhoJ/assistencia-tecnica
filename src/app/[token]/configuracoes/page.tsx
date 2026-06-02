@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { Trash2 } from "lucide-react";
 
-// Shell de Configurações (Story 2.6). Por ora só dá acesso à Lixeira (FR-4).
-// O Epic 3 estende esta página com o controle de Limiar de dias parados (FR-18).
+import { FormularioLimiar } from "@/components/configuracoes/formulario-limiar";
+import { buscarConfig } from "@/lib/queries/buscar-config";
+
+// Configurações. Seção do Limiar de dias parados (FR-18 / Story 3.1) +
+// acesso à Lixeira (FR-4 / Story 2.6).
 
 export default async function ConfiguracoesPage({
   params,
@@ -10,10 +13,17 @@ export default async function ConfiguracoesPage({
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
+  const config = await buscarConfig();
 
   return (
-    <section className="mx-auto max-w-2xl px-4 py-8">
-      <h1 className="mb-6 text-3xl font-bold tracking-tight">Configurações</h1>
+    <section className="mx-auto flex max-w-2xl flex-col gap-8 px-4 py-8">
+      <h1 className="text-3xl font-bold tracking-tight">Configurações</h1>
+
+      <div className="flex flex-col gap-3">
+        <h2 className="text-lg font-semibold">Limiar de dias parados</h2>
+        <FormularioLimiar valorAtual={config.limiarDiasParados} />
+      </div>
+
       <Link
         href={`/${token}/configuracoes/lixeira`}
         className="hover:bg-muted/50 flex min-h-[44px] items-center gap-3 rounded-md border px-4 py-3"
