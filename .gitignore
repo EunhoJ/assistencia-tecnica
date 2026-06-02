@@ -43,3 +43,6 @@ next-env.d.ts
 
 # prisma (cliente gerado por `prisma generate`; regenerado em postinstall)
 /src/generated/
+_bmad/
+_bmad-output/
+.claude/
