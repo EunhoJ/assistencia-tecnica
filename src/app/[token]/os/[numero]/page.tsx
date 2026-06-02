@@ -6,6 +6,7 @@ import { BadgePagamento } from "@/components/os/badge-pagamento";
 import { BadgeStatus } from "@/components/os/badge-status";
 import { BotaoAvancarStatus } from "@/components/os/botao-avancar-status";
 import { BotaoCancelar } from "@/components/os/botao-cancelar";
+import { BotaoExcluirOs } from "@/components/os/botao-excluir-os";
 import { BotaoMarcarAprovado } from "@/components/os/botao-marcar-aprovado";
 import { BotaoSemSolucao } from "@/components/os/botao-sem-solucao";
 import { DialogMarcarPago } from "@/components/os/dialog-marcar-pago";
@@ -15,11 +16,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import type {
-  EstadoPagamento,
-  FormaPagamento,
+import {
+  devolvidoENaoPago,
+  type EstadoPagamento,
+  type FormaPagamento,
 } from "@/lib/domain/pagamento";
-import { ehAtivo, type StatusOs } from "@/lib/domain/status";
+import { ehAtivo, ehTerminal, type StatusOs } from "@/lib/domain/status";
 import { formatDataHora } from "@/lib/format/data";
 import { formatBRL } from "@/lib/format/moeda";
 import { formatarTelefoneSimples } from "@/lib/format/telefone";
@@ -31,6 +33,40 @@ function labelFormaPagamento(f: string | null): string {
   if (!f) return "—";
   if (f === "Cartao") return "Cartão";
   return f;
+}
+
+// Texto de impacto da exclusão (Story 2.6 / FR-4) — só para Status terminal.
+// Enumera o que se sabe da própria OS; não recomputa relatórios.
+const LABEL_TERMINAL: Record<string, string> = {
+  Entregue: "Entregue",
+  Cancelado: "Cancelado",
+  Sem_solucao: "Sem solução",
+};
+
+function buildImpactoExclusao(os: {
+  status: string;
+  statusAlteradoEm: Date;
+  estadoPagamento: string;
+  valorCobradoCentavos: number | null;
+  pagoEm: Date | null;
+}): string {
+  const labelStatus = LABEL_TERMINAL[os.status] ?? os.status;
+  let texto = `Esta OS está em ${labelStatus} (desde ${formatDataHora(os.statusAlteradoEm)}).`;
+  if (os.estadoPagamento === "Pago" && os.pagoEm) {
+    texto += ` Tem pagamento de ${formatBRL(os.valorCobradoCentavos ?? 0)} em ${formatDataHora(os.pagoEm, "MM/yyyy")} — o Resumo financeiro desse mês deixará de contá-lo.`;
+  }
+  if (
+    devolvidoENaoPago({
+      status: os.status as StatusOs,
+      estadoPagamento: os.estadoPagamento as EstadoPagamento,
+      valorCobradoCentavos: os.valorCobradoCentavos,
+    })
+  ) {
+    texto += ` Está como devolvido não pago (${formatBRL(os.valorCobradoCentavos ?? 0)}) — sairá desse relatório.`;
+  }
+  texto +=
+    " A OS sai da listagem e dos relatórios; permanece recuperável na Lixeira.";
+  return texto;
 }
 
 export default async function OsDetalhePage({
@@ -53,6 +89,10 @@ export default async function OsDetalhePage({
   const telefoneFormatado =
     formatarTelefoneSimples(os.cliente.telefoneNormalizado) ||
     os.cliente.telefone;
+
+  const impactoTerminal = ehTerminal(os.status as StatusOs)
+    ? buildImpactoExclusao(os)
+    : null;
 
   return (
     <section className="mx-auto max-w-3xl px-4 py-8">
@@ -215,12 +255,19 @@ export default async function OsDetalhePage({
         ) : null}
       </div>
 
-      <Link
-        href={`/${token}/`}
-        className="text-primary mt-8 inline-block underline-offset-4 hover:underline"
-      >
-        ← Voltar ao dashboard
-      </Link>
+      <div className="mt-8 flex items-center justify-between gap-4 border-t pt-4">
+        <Link
+          href={`/${token}/`}
+          className="text-primary inline-block underline-offset-4 hover:underline"
+        >
+          ← Voltar ao dashboard
+        </Link>
+        <BotaoExcluirOs
+          numero={os.numeroSequencial}
+          statusAtual={os.status as StatusOs}
+          impactoTerminal={impactoTerminal}
+        />
+      </div>
     </section>
   );
 }
