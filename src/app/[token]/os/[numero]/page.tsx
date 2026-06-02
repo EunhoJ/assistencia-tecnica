@@ -5,14 +5,16 @@ import { notFound } from "next/navigation";
 import { BadgePagamento } from "@/components/os/badge-pagamento";
 import { BadgeStatus } from "@/components/os/badge-status";
 import { BotaoAvancarStatus } from "@/components/os/botao-avancar-status";
+import { BotaoCancelar } from "@/components/os/botao-cancelar";
 import { BotaoMarcarAprovado } from "@/components/os/botao-marcar-aprovado";
+import { BotaoSemSolucao } from "@/components/os/botao-sem-solucao";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import type { StatusOs } from "@/lib/domain/status";
+import { ehAtivo, type StatusOs } from "@/lib/domain/status";
 import { formatDataHora } from "@/lib/format/data";
 import { formatBRL } from "@/lib/format/moeda";
 import { formatarTelefoneSimples } from "@/lib/format/telefone";
@@ -123,6 +125,13 @@ export default async function OsDetalhePage({
                 {os.status === "Orcamento" && os.aprovadoEm === null ? (
                   <BotaoMarcarAprovado numero={os.numeroSequencial} />
                 ) : null}
+              </div>
+            ) : null}
+            {ehAtivo(os.status as StatusOs) ? (
+              <div className="flex flex-col gap-2 border-t pt-3">
+                <p className="text-muted-foreground text-xs">Ações de exceção</p>
+                <BotaoCancelar numero={os.numeroSequencial} />
+                <BotaoSemSolucao numero={os.numeroSequencial} />
               </div>
             ) : null}
           </CardContent>
