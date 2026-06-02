@@ -76,3 +76,27 @@ export const marcarAprovadoSchema = z.object({
 
 export type MarcarAprovadoInput = z.infer<typeof marcarAprovadoSchema>;
 export type MarcarAprovadoInputForm = z.input<typeof marcarAprovadoSchema>;
+
+// ============================================================================
+// Terminais alternativos — Cancelado (FR-8) + Sem solução (FR-9) / Story 2.3
+// ============================================================================
+
+// Shape idêntico a marcarAprovadoSchema (só identifica a OS + requestId de
+// idempotência). O Status terminal é fixo por action, não vem no payload.
+// Definidos separadamente para casar 1:1 com cancelarOs/semSolucaoOs
+// (architecture §Mapeamento FR → arquivos).
+export const cancelarOsSchema = z.object({
+  numero: z.number().int().positive("número da OS inválido"),
+  requestId: z.string().uuid("requestId inválido"),
+});
+
+export type CancelarOsInput = z.infer<typeof cancelarOsSchema>;
+export type CancelarOsInputForm = z.input<typeof cancelarOsSchema>;
+
+export const semSolucaoSchema = z.object({
+  numero: z.number().int().positive("número da OS inválido"),
+  requestId: z.string().uuid("requestId inválido"),
+});
+
+export type SemSolucaoInput = z.infer<typeof semSolucaoSchema>;
+export type SemSolucaoInputForm = z.input<typeof semSolucaoSchema>;
