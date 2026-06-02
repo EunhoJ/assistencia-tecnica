@@ -123,3 +123,26 @@ export const editarOsSchema = z.object({
 
 export type EditarOsInput = z.infer<typeof editarOsSchema>;
 export type EditarOsInputForm = z.input<typeof editarOsSchema>;
+
+// ============================================================================
+// Soft-delete + Restaurar (Story 2.6 / FR-4)
+// ============================================================================
+
+// `confirmado` exigido só para Status terminal (a action valida via ehTerminal).
+export const softDeleteOsSchema = z.object({
+  numero: z.number().int().positive("número da OS inválido"),
+  confirmado: z.boolean().optional().default(false),
+  requestId: z.string().uuid("requestId inválido"),
+});
+
+export type SoftDeleteOsInput = z.infer<typeof softDeleteOsSchema>;
+export type SoftDeleteOsInputForm = z.input<typeof softDeleteOsSchema>;
+
+// Restaurar é idempotente por natureza (setar deletadoEm=null duas vezes é
+// no-op) — sem requestId.
+export const restaurarOsSchema = z.object({
+  numero: z.number().int().positive("número da OS inválido"),
+});
+
+export type RestaurarOsInput = z.infer<typeof restaurarOsSchema>;
+export type RestaurarOsInputForm = z.input<typeof restaurarOsSchema>;
