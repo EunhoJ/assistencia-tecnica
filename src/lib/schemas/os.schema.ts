@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import type { DecisaoPagamento } from "@/lib/domain/pagamento";
 import type { StatusOs } from "@/lib/domain/status";
 
 import { clienteInlineSchema } from "./cliente.schema";
@@ -146,3 +147,34 @@ export const restaurarOsSchema = z.object({
 
 export type RestaurarOsInput = z.infer<typeof restaurarOsSchema>;
 export type RestaurarOsInputForm = z.input<typeof restaurarOsSchema>;
+
+// ============================================================================
+// Reabrir OS terminal (Story 2.7 / FR-19)
+// ============================================================================
+
+// Destino da reabertura: apenas os 4 Status ATIVOS (terminais rejeitados na
+// borda). Mesmo idiom de STATUS_OS_VALORES.
+export const STATUS_ATIVOS_VALORES = [
+  "Recebido",
+  "Orcamento",
+  "Aguardando_peca",
+  "Consertado",
+] as const satisfies readonly [StatusOs, ...StatusOs[]];
+
+export const DECISAO_PAGAMENTO_VALORES = [
+  "manter",
+  "reverter_pendente",
+  "reverter_sem_cobranca",
+] as const satisfies readonly [DecisaoPagamento, ...DecisaoPagamento[]];
+
+export const reabrirOsSchema = z.object({
+  numero: z.number().int().positive("número da OS inválido"),
+  paraStatus: z.enum(STATUS_ATIVOS_VALORES),
+  // Opcional no schema; a action a exige quando a OS tinha pagamento
+  // concretizado (Pago + pagoEm).
+  decisaoPagamento: z.enum(DECISAO_PAGAMENTO_VALORES).optional(),
+  requestId: z.string().uuid("requestId inválido"),
+});
+
+export type ReabrirOsInput = z.infer<typeof reabrirOsSchema>;
+export type ReabrirOsInputForm = z.input<typeof reabrirOsSchema>;
