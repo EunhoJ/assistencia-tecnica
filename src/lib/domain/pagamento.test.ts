@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
 
-import { devolvidoENaoPago, estaPago, type EstadoPagamento } from "./pagamento";
+import {
+  devolvidoENaoPago,
+  estaPago,
+  resolverHistoricoPagamento,
+  type EstadoPagamento,
+} from "./pagamento";
 import type { StatusOs } from "./status";
 
 describe("pagamento domain", () => {
@@ -95,6 +100,27 @@ describe("pagamento domain", () => {
           }),
         ).toBe(false);
       }
+    });
+  });
+
+  describe("resolverHistoricoPagamento", () => {
+    const pagoEm = new Date("2026-05-10T12:00:00Z");
+
+    it("manter → Pago, preserva pagoEm", () => {
+      expect(resolverHistoricoPagamento({ pagoEm }, "manter")).toEqual({
+        novoEstado: "Pago",
+        novoPagoEm: pagoEm,
+      });
+    });
+    it("reverter_pendente → Pendente, pagoEm null", () => {
+      expect(
+        resolverHistoricoPagamento({ pagoEm }, "reverter_pendente"),
+      ).toEqual({ novoEstado: "Pendente", novoPagoEm: null });
+    });
+    it("reverter_sem_cobranca → Sem_cobranca, pagoEm null", () => {
+      expect(
+        resolverHistoricoPagamento({ pagoEm }, "reverter_sem_cobranca"),
+      ).toEqual({ novoEstado: "Sem_cobranca", novoPagoEm: null });
     });
   });
 });

@@ -31,3 +31,25 @@ export function devolvidoENaoPago(os: {
     (os.valorCobradoCentavos ?? 0) > 0
   );
 }
+
+// FR-19 (Story 2.7): ao reabrir uma OS que estava Paga, o pai decide o destino
+// do pagamento histórico. Função pura (só estado + timestamp; a limpeza de
+// `forma_pagamento` é decidida na action conforme o novoEstado).
+export type DecisaoPagamento =
+  | "manter"
+  | "reverter_pendente"
+  | "reverter_sem_cobranca";
+
+export function resolverHistoricoPagamento(
+  historico: { pagoEm: Date | null },
+  decisao: DecisaoPagamento,
+): { novoEstado: EstadoPagamento; novoPagoEm: Date | null } {
+  switch (decisao) {
+    case "manter":
+      return { novoEstado: "Pago", novoPagoEm: historico.pagoEm };
+    case "reverter_pendente":
+      return { novoEstado: "Pendente", novoPagoEm: null };
+    case "reverter_sem_cobranca":
+      return { novoEstado: "Sem_cobranca", novoPagoEm: null };
+  }
+}

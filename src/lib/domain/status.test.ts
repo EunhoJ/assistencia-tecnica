@@ -7,6 +7,7 @@ import {
   ehTerminal,
   ehTransicaoNaoNatural,
   exigeAprovacao,
+  podeReabrirPara,
   podeTransicionar,
   transicoesValidas,
   type StatusOs,
@@ -188,6 +189,27 @@ describe("status domain", () => {
     });
     it("Consertado → Entregue não exige aprovação (false)", () => {
       expect(exigeAprovacao("Consertado", "Entregue")).toBe(false);
+    });
+  });
+
+  describe("podeReabrirPara", () => {
+    it("Entregue → Recebido é válido (terminal → ativo)", () => {
+      expect(podeReabrirPara("Entregue", "Recebido")).toBe(true);
+    });
+    it("Cancelado → Orcamento é válido (terminal → ativo)", () => {
+      expect(podeReabrirPara("Cancelado", "Orcamento")).toBe(true);
+    });
+    it("Sem_solucao → Consertado é válido (terminal → ativo)", () => {
+      expect(podeReabrirPara("Sem_solucao", "Consertado")).toBe(true);
+    });
+    it("Recebido → Orcamento é inválido (de não-terminal)", () => {
+      expect(podeReabrirPara("Recebido", "Orcamento")).toBe(false);
+    });
+    it("Entregue → Cancelado é inválido (para não-ativo)", () => {
+      expect(podeReabrirPara("Entregue", "Cancelado")).toBe(false);
+    });
+    it("Recebido → Entregue é inválido (ambos errados)", () => {
+      expect(podeReabrirPara("Recebido", "Entregue")).toBe(false);
     });
   });
 });

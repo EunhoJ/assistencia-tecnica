@@ -87,3 +87,10 @@ export function ehTransicaoNaoNatural(de: StatusOs, para: StatusOs): boolean {
 export function exigeAprovacao(de: StatusOs, para: StatusOs): boolean {
   return de === "Orcamento" && (para === "Aguardando_peca" || para === "Consertado");
 }
+
+// FR-19 (Story 2.7): reabrir uma OS terminal exige um destino ATIVO. A regra
+// é só "de terminal para ativo" — o fluxo dedicado de reabertura é o único
+// canal que sai de um terminal sem ser via `restaurarOs` (soft-delete).
+export function podeReabrirPara(deTerminal: StatusOs, paraAtivo: StatusOs): boolean {
+  return ehTerminal(deTerminal) && ehAtivo(paraAtivo);
+}
