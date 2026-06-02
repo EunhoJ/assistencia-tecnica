@@ -100,3 +100,26 @@ export const semSolucaoSchema = z.object({
 
 export type SemSolucaoInput = z.infer<typeof semSolucaoSchema>;
 export type SemSolucaoInputForm = z.input<typeof semSolucaoSchema>;
+
+// ============================================================================
+// Editar campos descritivos da OS (Story 2.5 / FR-3)
+// ============================================================================
+
+// Envia o conjunto COMPLETO de campos editáveis (não diff parcial) — app
+// single-user, sem concorrência; atualizar com valores idênticos é no-op
+// seguro. Status e pagamento NÃO são editáveis aqui (fluxos próprios). Reusa
+// `clienteInlineSchema`; bloco `aparelho` espelha `criarOsSchema`.
+export const editarOsSchema = z.object({
+  numero: z.number().int().positive("número da OS inválido"),
+  cliente: clienteInlineSchema,
+  aparelho: z.object({
+    tipo: z.string().min(1, "Tipo do aparelho é obrigatório"),
+    descricao: z.string().default(""),
+  }),
+  defeitoRelatado: z.string().min(1, "Defeito é obrigatório"),
+  observacoes: z.string().default(""),
+  requestId: z.string().uuid("requestId inválido"),
+});
+
+export type EditarOsInput = z.infer<typeof editarOsSchema>;
+export type EditarOsInputForm = z.input<typeof editarOsSchema>;
