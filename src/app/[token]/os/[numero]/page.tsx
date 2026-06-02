@@ -8,6 +8,7 @@ import { BotaoAvancarStatus } from "@/components/os/botao-avancar-status";
 import { BotaoCancelar } from "@/components/os/botao-cancelar";
 import { BotaoExcluirOs } from "@/components/os/botao-excluir-os";
 import { BotaoMarcarAprovado } from "@/components/os/botao-marcar-aprovado";
+import { BotaoReabrir } from "@/components/os/botao-reabrir";
 import { BotaoSemSolucao } from "@/components/os/botao-sem-solucao";
 import { DialogMarcarPago } from "@/components/os/dialog-marcar-pago";
 import {
@@ -186,6 +187,11 @@ export default async function OsDetalhePage({
                 <p className="text-muted-foreground text-xs">Ações de exceção</p>
                 <BotaoCancelar numero={os.numeroSequencial} />
                 <BotaoSemSolucao numero={os.numeroSequencial} />
+              </div>
+            ) : null}
+            {ehTerminal(os.status as StatusOs) ? (
+              <div className="border-t pt-3">
+                <BotaoReabrir token={token} numero={os.numeroSequencial} />
               </div>
             ) : null}
           </CardContent>
