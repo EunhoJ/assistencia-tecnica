@@ -150,6 +150,18 @@ describe("status domain", () => {
     });
   });
 
+  describe("transicoesValidas — terminais alternativos nunca saem de avanço", () => {
+    // AC #7 da Story 2.3: Cancelado/Sem_solucao só são atingíveis por action
+    // dedicada (cancelarOs/semSolucaoOs), nunca pelo fluxo de avanço. Trava o
+    // comportamento estabelecido pela 2.1 para nenhuma regressão futura.
+    for (const ativo of ATIVOS) {
+      it(`${ativo} não avança para Cancelado nem Sem_solucao`, () => {
+        expect(transicoesValidas(ativo)).not.toContain("Cancelado");
+        expect(transicoesValidas(ativo)).not.toContain("Sem_solucao");
+      });
+    }
+  });
+
   describe("exigeAprovacao", () => {
     it("Orcamento → Aguardando_peca exige aprovação (true)", () => {
       expect(exigeAprovacao("Orcamento", "Aguardando_peca")).toBe(true);
