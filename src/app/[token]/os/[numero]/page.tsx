@@ -1,4 +1,4 @@
-import { Phone } from "lucide-react";
+import { Pencil, Phone } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -56,9 +56,18 @@ export default async function OsDetalhePage({
 
   return (
     <section className="mx-auto max-w-3xl px-4 py-8">
-      <h1 className="mb-8 text-5xl font-bold tracking-tight sm:text-6xl">
-        OS #{os.numeroSequencial}
-      </h1>
+      <div className="mb-8 flex items-start justify-between gap-4">
+        <h1 className="text-5xl font-bold tracking-tight sm:text-6xl">
+          OS #{os.numeroSequencial}
+        </h1>
+        <Link
+          href={`/${token}/os/${os.numeroSequencial}/editar`}
+          className="text-primary hover:bg-muted/50 inline-flex min-h-[44px] items-center gap-2 rounded-md px-3 underline-offset-4 hover:underline"
+        >
+          <Pencil className="size-4" />
+          Editar
+        </Link>
+      </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Card>
