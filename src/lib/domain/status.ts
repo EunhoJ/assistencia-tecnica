@@ -79,3 +79,11 @@ export function transicoesValidas(de: StatusOs): StatusOs[] {
 export function ehTransicaoNaoNatural(de: StatusOs, para: StatusOs): boolean {
   return TRANSICOES_NAO_NATURAIS[de].includes(para);
 }
+
+// FR-7: sair de Orçamento rumo a Aguardando peça ou Consertado exige
+// aprovação registrada (`aprovado_em` preenchido). Centralizar a regra aqui
+// permite que tanto `avancarStatus` quanto telas (Story 2.2+) consultem o
+// mesmo predicado.
+export function exigeAprovacao(de: StatusOs, para: StatusOs): boolean {
+  return de === "Orcamento" && (para === "Aguardando_peca" || para === "Consertado");
+}

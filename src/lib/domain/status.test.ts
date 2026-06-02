@@ -6,6 +6,7 @@ import {
   ehAtivo,
   ehTerminal,
   ehTransicaoNaoNatural,
+  exigeAprovacao,
   podeTransicionar,
   transicoesValidas,
   type StatusOs,
@@ -146,6 +147,35 @@ describe("status domain", () => {
     });
     it("Orcamento → Consertado é não-natural (true)", () => {
       expect(ehTransicaoNaoNatural("Orcamento", "Consertado")).toBe(true);
+    });
+  });
+
+  describe("exigeAprovacao", () => {
+    it("Orcamento → Aguardando_peca exige aprovação (true)", () => {
+      expect(exigeAprovacao("Orcamento", "Aguardando_peca")).toBe(true);
+    });
+    it("Orcamento → Consertado exige aprovação (true)", () => {
+      expect(exigeAprovacao("Orcamento", "Consertado")).toBe(true);
+    });
+    it("Orcamento → Orcamento não exige aprovação (false)", () => {
+      expect(exigeAprovacao("Orcamento", "Orcamento")).toBe(false);
+    });
+    it("Orcamento → Entregue não exige aprovação (false)", () => {
+      // Orcamento → Entregue nem é transição válida; exigeAprovacao só
+      // marca true para os dois alvos explícitos do FR-7.
+      expect(exigeAprovacao("Orcamento", "Entregue")).toBe(false);
+    });
+    it("Orcamento → Recebido não exige aprovação (false)", () => {
+      expect(exigeAprovacao("Orcamento", "Recebido")).toBe(false);
+    });
+    it("Recebido → Aguardando_peca não exige aprovação (false)", () => {
+      expect(exigeAprovacao("Recebido", "Aguardando_peca")).toBe(false);
+    });
+    it("Aguardando_peca → Consertado não exige aprovação (false)", () => {
+      expect(exigeAprovacao("Aguardando_peca", "Consertado")).toBe(false);
+    });
+    it("Consertado → Entregue não exige aprovação (false)", () => {
+      expect(exigeAprovacao("Consertado", "Entregue")).toBe(false);
     });
   });
 });

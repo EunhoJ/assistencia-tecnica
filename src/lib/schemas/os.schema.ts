@@ -62,3 +62,17 @@ export const avancarStatusSchema = z.object({
 
 export type AvancarStatusInput = z.infer<typeof avancarStatusSchema>;
 export type AvancarStatusInputForm = z.input<typeof avancarStatusSchema>;
+
+// ============================================================================
+// Marcar Aprovação do orçamento (Story 2.2 / FR-7)
+// ============================================================================
+
+// Schema simples — só identifica a OS e o requestId de idempotência. Status
+// = "Orcamento" é validado dinamicamente pela action (depende do DB).
+export const marcarAprovadoSchema = z.object({
+  numero: z.number().int().positive("número da OS inválido"),
+  requestId: z.string().uuid("requestId inválido"),
+});
+
+export type MarcarAprovadoInput = z.infer<typeof marcarAprovadoSchema>;
+export type MarcarAprovadoInputForm = z.input<typeof marcarAprovadoSchema>;

@@ -12,6 +12,7 @@ import { db } from "@/lib/db/client";
 import { alterarStatus } from "@/lib/db/transitions";
 import {
   ehTransicaoNaoNatural,
+  exigeAprovacao,
   podeTransicionar,
   type StatusOs,
 } from "@/lib/domain/status";
@@ -28,15 +29,12 @@ import {
 //      a. verificarIdempotencia(tx, requestId) → curto-circuita se já visto
 //      b. lookup OS por numeroSequencial (extension soft-delete ativa)
 //      c. validação de domínio: podeTransicionar; transição não-natural
-//         exige `confirmado: true`; FR-7: Orçamento → Aguardando_peca/Consertado
-//         exige `aprovado_em` preenchido
+//         exige `confirmado: true`; FR-7 delegado a `exigeAprovacao` em
+//         domain (Story 2.2 — agora compartilhado com `marcarAprovado`)
 //      d. alterarStatus(tx, ...) — helper transacional ÚNICO
 //      e. gravarIdempotencia(tx, ...)
 //   3. updateTag("os") fora da transação (read-your-own-writes Next 16)
 //   4. Retornar ActionResult ok=true
-//
-// FR-7 vive INLINE aqui (Story 2.1) — Story 2.2 introduz exigeAprovacao no
-// domain quando houver 2+ callers; antecipar agora seria YAGNI.
 
 export async function avancarStatus(
   input: AvancarStatusInputForm,
@@ -96,14 +94,10 @@ export async function avancarStatus(
       };
     }
 
-    // FR-7: sair de Orçamento rumo a Aguardando_peca ou Consertado exige
-    // aprovação registrada (`aprovado_em` preenchido). Botão "Marcar
-    // Aprovado" que destrava esse bloqueio nasce na Story 2.2.
-    if (
-      statusAtual === "Orcamento" &&
-      (paraStatus === "Aguardando_peca" || paraStatus === "Consertado") &&
-      os.aprovadoEm === null
-    ) {
+    // FR-7: regra centralizada em domain (Story 2.2). A mensagem é
+    // observável pelo `<BotaoAvancarStatus />` (mostra inline) e pela UAT;
+    // não alterar o texto sem revisar callsites.
+    if (exigeAprovacao(statusAtual, paraStatus) && os.aprovadoEm === null) {
       return {
         ok: false as const,
         error: {

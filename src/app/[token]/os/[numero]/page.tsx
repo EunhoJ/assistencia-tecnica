@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { BadgePagamento } from "@/components/os/badge-pagamento";
 import { BadgeStatus } from "@/components/os/badge-status";
 import { BotaoAvancarStatus } from "@/components/os/botao-avancar-status";
+import { BotaoMarcarAprovado } from "@/components/os/botao-marcar-aprovado";
 import {
   Card,
   CardContent,
@@ -109,6 +110,21 @@ export default async function OsDetalhePage({
               numero={os.numeroSequencial}
               statusAtual={os.status as StatusOs}
             />
+            {os.status === "Orcamento" || os.aprovadoEm ? (
+              <div className="flex flex-col gap-2 border-t pt-3">
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Aprovação: </span>
+                  {os.aprovadoEm ? (
+                    <span>aprovada em {formatDataHora(os.aprovadoEm)}</span>
+                  ) : (
+                    <span>pendente</span>
+                  )}
+                </div>
+                {os.status === "Orcamento" && os.aprovadoEm === null ? (
+                  <BotaoMarcarAprovado numero={os.numeroSequencial} />
+                ) : null}
+              </div>
+            ) : null}
           </CardContent>
         </Card>
 
@@ -131,14 +147,6 @@ export default async function OsDetalhePage({
                 <span className="text-muted-foreground">Forma: </span>
                 <span>{labelFormaPagamento(os.formaPagamento)}</span>
               </div>
-              {os.aprovadoEm ? (
-                <div>
-                  <span className="text-muted-foreground">
-                    Orçamento aprovado em:{" "}
-                  </span>
-                  <span>{formatDataHora(os.aprovadoEm)}</span>
-                </div>
-              ) : null}
               {os.pagoEm ? (
                 <div>
                   <span className="text-muted-foreground">Pago em: </span>
