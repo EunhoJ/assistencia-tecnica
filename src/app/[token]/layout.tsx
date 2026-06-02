@@ -1,4 +1,5 @@
 import { NavBar } from "@/components/shared/nav-bar";
+import { Toaster } from "@/components/ui/sonner";
 
 export default async function TokenLayout({
   children,
@@ -14,6 +15,7 @@ export default async function TokenLayout({
         <NavBar token={token} />
       </header>
       <main className="flex-1">{children}</main>
+      <Toaster />
     </>
   );
 }
