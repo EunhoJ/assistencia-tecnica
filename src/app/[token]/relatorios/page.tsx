@@ -1,9 +1,8 @@
-import { HandCoins } from "lucide-react";
+import { HandCoins, PackageSearch } from "lucide-react";
 import Link from "next/link";
 
-// Hub de Relatórios (Story 3.2). Por ora só "Devolvido não pago" (FR-13).
-// As Stories 3.3 (Aparelhos parados) e 3.4 (Resumo financeiro) adicionam seus
-// links aqui.
+// Hub de Relatórios (Story 3.2). "Devolvido não pago" (FR-13) + "Aparelhos
+// parados" (FR-14, Story 3.3). A Story 3.4 (Resumo financeiro) adiciona o seu.
 
 export default async function RelatoriosPage({
   params,
@@ -25,6 +24,19 @@ export default async function RelatoriosPage({
           <span className="block font-medium">Devolvido não pago</span>
           <span className="text-muted-foreground text-sm">
             Quem levou o aparelho e ainda não pagou
+          </span>
+        </span>
+      </Link>
+
+      <Link
+        href={`/${token}/relatorios/aparelhos-parados`}
+        className="hover:bg-muted/50 flex min-h-[44px] items-center gap-3 rounded-md border px-4 py-3"
+      >
+        <PackageSearch className="size-5" />
+        <span>
+          <span className="block font-medium">Aparelhos parados</span>
+          <span className="text-muted-foreground text-sm">
+            OSs ativas travadas há muito tempo no mesmo status
           </span>
         </span>
       </Link>
