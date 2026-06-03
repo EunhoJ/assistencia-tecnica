@@ -10,6 +10,7 @@ import {
 import type { ActionResult } from "@/lib/actions/types";
 import { db } from "@/lib/db/client";
 import { ehTerminal, type StatusOs } from "@/lib/domain/status";
+import { log } from "@/lib/log";
 import {
   softDeleteOsSchema,
   type SoftDeleteOsInputForm,
@@ -38,51 +39,60 @@ export async function softDeleteOs(
     };
   }
 
-  const result = await db.$transaction(async (tx) => {
-    const visto = await verificarIdempotencia<{ numero: number }>(
-      tx,
-      parsed.data.requestId,
-    );
-    if (visto) {
-      return { ok: true as const, data: visto };
-    }
+  try {
+    const result = await db.$transaction(async (tx) => {
+      const visto = await verificarIdempotencia<{ numero: number }>(
+        tx,
+        parsed.data.requestId,
+        "softDeleteOs",
+      );
+      if (visto) {
+        return { ok: true as const, data: visto };
+      }
 
-    const os = await tx.os.findUnique({
-      where: { numeroSequencial: parsed.data.numero },
-      select: { id: true, status: true },
+      const os = await tx.os.findUnique({
+        where: { numeroSequencial: parsed.data.numero },
+        select: { id: true, status: true },
+      });
+
+      if (!os) {
+        return {
+          ok: false as const,
+          error: { code: "NAO_ENCONTRADO" as const, entidade: "OS" },
+        };
+      }
+
+      if (ehTerminal(os.status as StatusOs) && !parsed.data.confirmado) {
+        return {
+          ok: false as const,
+          error: {
+            code: "CONFLITO" as const,
+            mensagem: "Deleção de terminal exige confirmação",
+          },
+        };
+      }
+
+      await tx.os.update({
+        where: { id: os.id },
+        data: { deletadoEm: new Date() },
+      });
+
+      await gravarIdempotencia(tx, parsed.data.requestId, "softDeleteOs", {
+        numero: parsed.data.numero,
+      });
+
+      return { ok: true as const, data: { numero: parsed.data.numero } };
     });
 
-    if (!os) {
-      return {
-        ok: false as const,
-        error: { code: "NAO_ENCONTRADO" as const, entidade: "OS" },
-      };
+    if (result.ok) {
+      updateTag("os");
     }
-
-    if (ehTerminal(os.status as StatusOs) && !parsed.data.confirmado) {
-      return {
-        ok: false as const,
-        error: {
-          code: "CONFLITO" as const,
-          mensagem: "Deleção de terminal exige confirmação",
-        },
-      };
-    }
-
-    await tx.os.update({
-      where: { id: os.id },
-      data: { deletadoEm: new Date() },
-    });
-
-    await gravarIdempotencia(tx, parsed.data.requestId, "softDeleteOs", {
-      numero: parsed.data.numero,
-    });
-
-    return { ok: true as const, data: { numero: parsed.data.numero } };
-  });
-
-  if (result.ok) {
-    updateTag("os");
+    return result;
+  } catch (erro) {
+    log.error("softDeleteOs.erro", erro, { numero: parsed.data.numero });
+    return {
+      ok: false,
+      error: { code: "INTERNO", mensagem: "Erro interno ao processar a operação" },
+    };
   }
-  return result;
 }

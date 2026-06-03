@@ -5,6 +5,7 @@ import type { ActionResult } from "@/lib/actions/types";
 import { db } from "@/lib/db/client";
 import { normalizarTelefone } from "@/lib/format/telefone";
 import { escaparLike, normalizarTexto } from "@/lib/format/texto";
+import { log } from "@/lib/log";
 import {
   buscarClientesSchema,
   type BuscarClientesInput,
@@ -34,40 +35,48 @@ export async function buscarClientes(
     };
   }
 
-  const tel = normalizarTelefone(parsed.data.query);
-  const nome = normalizarTexto(parsed.data.query);
-  const nomeLike = escaparLike(nome);
-  const limite = parsed.data.limite;
+  try {
+    const tel = normalizarTelefone(parsed.data.query);
+    const nome = normalizarTexto(parsed.data.query);
+    const nomeLike = escaparLike(nome);
+    const limite = parsed.data.limite;
 
-  const rows = await db.$queryRaw<
-    Array<{
-      id: bigint;
-      nome: string;
-      telefone: string;
-    }>
-  >`
-    SELECT id, nome, telefone
-    FROM cliente
-    WHERE deletado_em IS NULL
-      AND (
-        (length(${tel}) >= 4 AND telefone_normalizado LIKE ${tel} || '%')
-        OR
-        (length(${nome}) >= 2 AND lower(public.f_unaccent(nome)) LIKE ${nomeLike} || '%')
-      )
-    ORDER BY
-      CASE
-        WHEN length(${tel}) >= 4 AND telefone_normalizado LIKE ${tel} || '%' THEN 1
-        ELSE 2
-      END,
-      criado_em DESC
-    LIMIT ${limite}
-  `;
+    const rows = await db.$queryRaw<
+      Array<{
+        id: bigint;
+        nome: string;
+        telefone: string;
+      }>
+    >`
+      SELECT id, nome, telefone
+      FROM cliente
+      WHERE deletado_em IS NULL
+        AND (
+          (length(${tel}) >= 4 AND telefone_normalizado LIKE ${tel} || '%')
+          OR
+          (length(${nome}) >= 2 AND lower(public.f_unaccent(nome)) LIKE ${nomeLike} || '%')
+        )
+      ORDER BY
+        CASE
+          WHEN length(${tel}) >= 4 AND telefone_normalizado LIKE ${tel} || '%' THEN 1
+          ELSE 2
+        END,
+        criado_em DESC
+      LIMIT ${limite}
+    `;
 
-  const data: ClienteSugestao[] = rows.map((r) => ({
-    id: r.id.toString(),
-    nome: r.nome,
-    telefone: r.telefone,
-  }));
+    const data: ClienteSugestao[] = rows.map((r) => ({
+      id: r.id.toString(),
+      nome: r.nome,
+      telefone: r.telefone,
+    }));
 
-  return { ok: true, data };
+    return { ok: true, data };
+  } catch (erro) {
+    log.error("buscarClientes.erro", erro);
+    return {
+      ok: false,
+      error: { code: "INTERNO", mensagem: "Erro interno ao processar a operação" },
+    };
+  }
 }

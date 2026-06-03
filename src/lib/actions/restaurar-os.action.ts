@@ -8,6 +8,7 @@ import { dbBase } from "@/lib/db/client";
 // Colisão de nome: o WRAPPER `restaurarOs(db, id)` (Story 1.3) vs esta ACTION
 // `restaurarOs({ numero })`. Importar o wrapper com alias.
 import { restaurarOs as restaurarOsDb } from "@/lib/db/extensions";
+import { log } from "@/lib/log";
 import {
   restaurarOsSchema,
   type RestaurarOsInputForm,
@@ -29,24 +30,32 @@ export async function restaurarOs(
     };
   }
 
-  const os = await dbBase.os.findUnique({
-    where: { numeroSequencial: parsed.data.numero },
-    select: { id: true, deletadoEm: true },
-  });
+  try {
+    const os = await dbBase.os.findUnique({
+      where: { numeroSequencial: parsed.data.numero },
+      select: { id: true, deletadoEm: true },
+    });
 
-  if (!os) {
+    if (!os) {
+      return {
+        ok: false,
+        error: { code: "NAO_ENCONTRADO", entidade: "OS" },
+      };
+    }
+
+    // Idempotência por estado: já ativa → no-op.
+    if (os.deletadoEm === null) {
+      return { ok: true, data: { numero: parsed.data.numero } };
+    }
+
+    await restaurarOsDb(dbBase, os.id);
+    updateTag("os");
+    return { ok: true, data: { numero: parsed.data.numero } };
+  } catch (erro) {
+    log.error("restaurarOs.erro", erro, { numero: parsed.data.numero });
     return {
       ok: false,
-      error: { code: "NAO_ENCONTRADO", entidade: "OS" },
+      error: { code: "INTERNO", mensagem: "Erro interno ao processar a operação" },
     };
   }
-
-  // Idempotência por estado: já ativa → no-op.
-  if (os.deletadoEm === null) {
-    return { ok: true, data: { numero: parsed.data.numero } };
-  }
-
-  await restaurarOsDb(dbBase, os.id);
-  updateTag("os");
-  return { ok: true, data: { numero: parsed.data.numero } };
 }

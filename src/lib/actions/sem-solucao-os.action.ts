@@ -11,6 +11,7 @@ import type { ActionResult } from "@/lib/actions/types";
 import { db } from "@/lib/db/client";
 import { alterarStatus } from "@/lib/db/transitions";
 import { ehAtivo, type StatusOs } from "@/lib/domain/status";
+import { log } from "@/lib/log";
 import {
   semSolucaoSchema,
   type SemSolucaoInputForm,
@@ -40,47 +41,56 @@ export async function semSolucaoOs(
     };
   }
 
-  const result = await db.$transaction(async (tx) => {
-    const visto = await verificarIdempotencia<{ status: StatusOs }>(
-      tx,
-      parsed.data.requestId,
-    );
-    if (visto) {
-      return { ok: true as const, data: visto };
-    }
+  try {
+    const result = await db.$transaction(async (tx) => {
+      const visto = await verificarIdempotencia<{ status: StatusOs }>(
+        tx,
+        parsed.data.requestId,
+        "semSolucaoOs",
+      );
+      if (visto) {
+        return { ok: true as const, data: visto };
+      }
 
-    const os = await tx.os.findUnique({
-      where: { numeroSequencial: parsed.data.numero },
-      select: { id: true, status: true },
+      const os = await tx.os.findUnique({
+        where: { numeroSequencial: parsed.data.numero },
+        select: { id: true, status: true },
+      });
+
+      if (!os) {
+        return {
+          ok: false as const,
+          error: { code: "NAO_ENCONTRADO" as const, entidade: "OS" },
+        };
+      }
+
+      if (!ehAtivo(os.status as StatusOs)) {
+        return {
+          ok: false as const,
+          error: {
+            code: "CONFLITO" as const,
+            mensagem: "Só é possível marcar 'Sem solução' numa OS em andamento",
+          },
+        };
+      }
+
+      await alterarStatus(tx, os.id, "Sem_solucao");
+      await gravarIdempotencia(tx, parsed.data.requestId, "semSolucaoOs", {
+        status: "Sem_solucao",
+      });
+
+      return { ok: true as const, data: { status: "Sem_solucao" as StatusOs } };
     });
 
-    if (!os) {
-      return {
-        ok: false as const,
-        error: { code: "NAO_ENCONTRADO" as const, entidade: "OS" },
-      };
+    if (result.ok) {
+      updateTag("os");
     }
-
-    if (!ehAtivo(os.status as StatusOs)) {
-      return {
-        ok: false as const,
-        error: {
-          code: "CONFLITO" as const,
-          mensagem: "Só é possível marcar 'Sem solução' numa OS em andamento",
-        },
-      };
-    }
-
-    await alterarStatus(tx, os.id, "Sem_solucao");
-    await gravarIdempotencia(tx, parsed.data.requestId, "semSolucaoOs", {
-      status: "Sem_solucao",
-    });
-
-    return { ok: true as const, data: { status: "Sem_solucao" as StatusOs } };
-  });
-
-  if (result.ok) {
-    updateTag("os");
+    return result;
+  } catch (erro) {
+    log.error("semSolucaoOs.erro", erro, { numero: parsed.data.numero });
+    return {
+      ok: false,
+      error: { code: "INTERNO", mensagem: "Erro interno ao processar a operação" },
+    };
   }
-  return result;
 }

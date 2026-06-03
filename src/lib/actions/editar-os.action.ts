@@ -10,6 +10,7 @@ import {
 import type { ActionResult } from "@/lib/actions/types";
 import { db } from "@/lib/db/client";
 import { normalizarTelefone } from "@/lib/format/telefone";
+import { log } from "@/lib/log";
 import {
   editarOsSchema,
   type EditarOsInputForm,
@@ -47,57 +48,66 @@ export async function editarOs(
     };
   }
 
-  const result = await db.$transaction(async (tx) => {
-    const visto = await verificarIdempotencia<{ numero: number }>(
-      tx,
-      parsed.data.requestId,
-    );
-    if (visto) {
-      return { ok: true as const, data: visto };
+  try {
+    const result = await db.$transaction(async (tx) => {
+      const visto = await verificarIdempotencia<{ numero: number }>(
+        tx,
+        parsed.data.requestId,
+        "editarOs",
+      );
+      if (visto) {
+        return { ok: true as const, data: visto };
+      }
+
+      const os = await tx.os.findUnique({
+        where: { numeroSequencial: parsed.data.numero },
+        select: { id: true, clienteId: true },
+      });
+
+      if (!os) {
+        return {
+          ok: false as const,
+          error: { code: "NAO_ENCONTRADO" as const, entidade: "OS" },
+        };
+      }
+
+      // Atualiza o registro do Cliente existente (compartilhado).
+      await tx.cliente.update({
+        where: { id: os.clienteId },
+        data: {
+          nome: parsed.data.cliente.nome,
+          telefone: parsed.data.cliente.telefone,
+          telefoneNormalizado: normalizarTelefone(parsed.data.cliente.telefone),
+        },
+      });
+
+      // Atualiza só os campos descritivos da OS.
+      await tx.os.update({
+        where: { id: os.id },
+        data: {
+          aparelhoTipo: parsed.data.aparelho.tipo,
+          aparelhoDescricao: parsed.data.aparelho.descricao || null,
+          defeitoRelatado: parsed.data.defeitoRelatado,
+          observacoes: parsed.data.observacoes || null,
+        },
+      });
+
+      await gravarIdempotencia(tx, parsed.data.requestId, "editarOs", {
+        numero: parsed.data.numero,
+      });
+
+      return { ok: true as const, data: { numero: parsed.data.numero } };
+    });
+
+    if (result.ok) {
+      updateTag("os");
     }
-
-    const os = await tx.os.findUnique({
-      where: { numeroSequencial: parsed.data.numero },
-      select: { id: true, clienteId: true },
-    });
-
-    if (!os) {
-      return {
-        ok: false as const,
-        error: { code: "NAO_ENCONTRADO" as const, entidade: "OS" },
-      };
-    }
-
-    // Atualiza o registro do Cliente existente (compartilhado).
-    await tx.cliente.update({
-      where: { id: os.clienteId },
-      data: {
-        nome: parsed.data.cliente.nome,
-        telefone: parsed.data.cliente.telefone,
-        telefoneNormalizado: normalizarTelefone(parsed.data.cliente.telefone),
-      },
-    });
-
-    // Atualiza só os campos descritivos da OS.
-    await tx.os.update({
-      where: { id: os.id },
-      data: {
-        aparelhoTipo: parsed.data.aparelho.tipo,
-        aparelhoDescricao: parsed.data.aparelho.descricao || null,
-        defeitoRelatado: parsed.data.defeitoRelatado,
-        observacoes: parsed.data.observacoes || null,
-      },
-    });
-
-    await gravarIdempotencia(tx, parsed.data.requestId, "editarOs", {
-      numero: parsed.data.numero,
-    });
-
-    return { ok: true as const, data: { numero: parsed.data.numero } };
-  });
-
-  if (result.ok) {
-    updateTag("os");
+    return result;
+  } catch (erro) {
+    log.error("editarOs.erro", erro, { numero: parsed.data.numero });
+    return {
+      ok: false,
+      error: { code: "INTERNO", mensagem: "Erro interno ao processar a operação" },
+    };
   }
-  return result;
 }

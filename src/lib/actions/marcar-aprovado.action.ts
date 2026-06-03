@@ -9,6 +9,7 @@ import {
 } from "@/lib/actions/helpers";
 import type { ActionResult } from "@/lib/actions/types";
 import { db } from "@/lib/db/client";
+import { log } from "@/lib/log";
 import {
   marcarAprovadoSchema,
   type MarcarAprovadoInputForm,
@@ -42,69 +43,78 @@ export async function marcarAprovado(
     };
   }
 
-  const result = await db.$transaction(async (tx) => {
-    // payloadRespostaJson é Json no Prisma — Date é serializado como string
-    // ISO. Generic precisa refletir isso (string, não Date).
-    const visto = await verificarIdempotencia<{ aprovadoEm: string }>(
-      tx,
-      parsed.data.requestId,
-    );
-    if (visto) {
+  try {
+    const result = await db.$transaction(async (tx) => {
+      // payloadRespostaJson é Json no Prisma — Date é serializado como string
+      // ISO. Generic precisa refletir isso (string, não Date).
+      const visto = await verificarIdempotencia<{ aprovadoEm: string }>(
+        tx,
+        parsed.data.requestId,
+        "marcarAprovado",
+      );
+      if (visto) {
+        return {
+          ok: true as const,
+          data: { aprovadoEm: new Date(visto.aprovadoEm) },
+        };
+      }
+
+      const os = await tx.os.findUnique({
+        where: { numeroSequencial: parsed.data.numero },
+        select: { id: true, status: true, aprovadoEm: true },
+      });
+
+      if (!os) {
+        return {
+          ok: false as const,
+          error: { code: "NAO_ENCONTRADO" as const, entidade: "OS" },
+        };
+      }
+
+      if (os.status !== "Orcamento") {
+        return {
+          ok: false as const,
+          error: {
+            code: "CONFLITO" as const,
+            mensagem: "Aprovação só pode ser marcada quando o Status é Orçamento",
+          },
+        };
+      }
+
+      // Idempotência implícita por estado: já aprovado → retorna sucesso sem
+      // mutar. Preserva o timestamp histórico (não sobrescreve com new Date()).
+      if (os.aprovadoEm !== null) {
+        return {
+          ok: true as const,
+          data: { aprovadoEm: os.aprovadoEm },
+        };
+      }
+
+      const atualizada = await tx.os.update({
+        where: { id: os.id },
+        data: { aprovadoEm: new Date() },
+        select: { aprovadoEm: true },
+      });
+
+      await gravarIdempotencia(tx, parsed.data.requestId, "marcarAprovado", {
+        aprovadoEm: atualizada.aprovadoEm!.toISOString(),
+      });
+
       return {
         ok: true as const,
-        data: { aprovadoEm: new Date(visto.aprovadoEm) },
+        data: { aprovadoEm: atualizada.aprovadoEm! },
       };
-    }
-
-    const os = await tx.os.findUnique({
-      where: { numeroSequencial: parsed.data.numero },
-      select: { id: true, status: true, aprovadoEm: true },
     });
 
-    if (!os) {
-      return {
-        ok: false as const,
-        error: { code: "NAO_ENCONTRADO" as const, entidade: "OS" },
-      };
+    if (result.ok) {
+      updateTag("os");
     }
-
-    if (os.status !== "Orcamento") {
-      return {
-        ok: false as const,
-        error: {
-          code: "CONFLITO" as const,
-          mensagem: "Aprovação só pode ser marcada quando o Status é Orçamento",
-        },
-      };
-    }
-
-    // Idempotência implícita por estado: já aprovado → retorna sucesso sem
-    // mutar. Preserva o timestamp histórico (não sobrescreve com new Date()).
-    if (os.aprovadoEm !== null) {
-      return {
-        ok: true as const,
-        data: { aprovadoEm: os.aprovadoEm },
-      };
-    }
-
-    const atualizada = await tx.os.update({
-      where: { id: os.id },
-      data: { aprovadoEm: new Date() },
-      select: { aprovadoEm: true },
-    });
-
-    await gravarIdempotencia(tx, parsed.data.requestId, "marcarAprovado", {
-      aprovadoEm: atualizada.aprovadoEm!.toISOString(),
-    });
-
+    return result;
+  } catch (erro) {
+    log.error("marcarAprovado.erro", erro, { numero: parsed.data.numero });
     return {
-      ok: true as const,
-      data: { aprovadoEm: atualizada.aprovadoEm! },
+      ok: false,
+      error: { code: "INTERNO", mensagem: "Erro interno ao processar a operação" },
     };
-  });
-
-  if (result.ok) {
-    updateTag("os");
   }
-  return result;
 }

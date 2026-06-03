@@ -10,6 +10,7 @@ import {
 import type { ActionResult } from "@/lib/actions/types";
 import { db } from "@/lib/db/client";
 import { normalizarTelefone } from "@/lib/format/telefone";
+import { log } from "@/lib/log";
 import { criarOsSchema, type CriarOsInputForm } from "@/lib/schemas/os.schema";
 
 // Primeira Server Action do projeto. Pattern canônico que todas as actions
@@ -37,72 +38,81 @@ export async function criarOs(
     };
   }
 
-  const result = await db.$transaction(async (tx) => {
-    const visto = await verificarIdempotencia<{ numero: number }>(
-      tx,
-      parsed.data.requestId,
-    );
-    if (visto) {
-      return { ok: true as const, data: visto };
-    }
+  try {
+    const result = await db.$transaction(async (tx) => {
+      const visto = await verificarIdempotencia<{ numero: number }>(
+        tx,
+        parsed.data.requestId,
+        "criarOs",
+      );
+      if (visto) {
+        return { ok: true as const, data: visto };
+      }
 
-    const telefoneNormalizado = normalizarTelefone(parsed.data.cliente.telefone);
+      const telefoneNormalizado = normalizarTelefone(parsed.data.cliente.telefone);
 
-    // Story 1.6: curto-circuito por clienteIdSelecionado (autocomplete).
-    // Se válido E não soft-deleted (extension filtra em findUnique),
-    // reusa o Cliente sem criar duplicata.
-    let cliente: Awaited<ReturnType<typeof tx.cliente.findUnique>> = null;
-    if (parsed.data.clienteIdSelecionado) {
-      cliente = await tx.cliente.findUnique({
-        where: { id: BigInt(parsed.data.clienteIdSelecionado) },
-      });
-      // Se null (Cliente soft-deleted entre seleção e submit, ou id inválido),
-      // cai no fallback findFirst+create abaixo — defesa silenciosa.
-    }
+      // Story 1.6: curto-circuito por clienteIdSelecionado (autocomplete).
+      // Se válido E não soft-deleted (extension filtra em findUnique),
+      // reusa o Cliente sem criar duplicata.
+      let cliente: Awaited<ReturnType<typeof tx.cliente.findUnique>> = null;
+      if (parsed.data.clienteIdSelecionado) {
+        cliente = await tx.cliente.findUnique({
+          where: { id: BigInt(parsed.data.clienteIdSelecionado) },
+        });
+        // Se null (Cliente soft-deleted entre seleção e submit, ou id inválido),
+        // cai no fallback findFirst+create abaixo — defesa silenciosa.
+      }
 
-    // Fallback: upsert manual de Cliente quando não houve seleção ou seleção
-    // perdeu validade. Schema não tem @@unique em (nome, telefone_normalizado)
-    // (Open Q9 do PRD aceita duplicatas em v1). Race condition em chamadas
-    // simultâneas é tolerada — single-user.
-    if (!cliente) {
-      cliente = await tx.cliente.findFirst({
-        where: {
-          nome: parsed.data.cliente.nome,
-          telefoneNormalizado,
-        },
-      });
-    }
-    if (!cliente) {
-      cliente = await tx.cliente.create({
+      // Fallback: upsert manual de Cliente quando não houve seleção ou seleção
+      // perdeu validade. Schema não tem @@unique em (nome, telefone_normalizado)
+      // (Open Q9 do PRD aceita duplicatas em v1). Race condition em chamadas
+      // simultâneas é tolerada — single-user.
+      if (!cliente) {
+        cliente = await tx.cliente.findFirst({
+          where: {
+            nome: parsed.data.cliente.nome,
+            telefoneNormalizado,
+          },
+        });
+      }
+      if (!cliente) {
+        cliente = await tx.cliente.create({
+          data: {
+            nome: parsed.data.cliente.nome,
+            telefone: parsed.data.cliente.telefone,
+            telefoneNormalizado,
+          },
+        });
+      }
+
+      const criada = await tx.os.create({
         data: {
-          nome: parsed.data.cliente.nome,
-          telefone: parsed.data.cliente.telefone,
-          telefoneNormalizado,
+          clienteId: cliente.id,
+          aparelhoTipo: parsed.data.aparelho.tipo,
+          aparelhoDescricao: parsed.data.aparelho.descricao || null,
+          defeitoRelatado: parsed.data.defeitoRelatado,
+          status: "Recebido",
+          statusAlteradoEm: new Date(),
+          requestId: parsed.data.requestId,
         },
       });
-    }
 
-    const criada = await tx.os.create({
-      data: {
-        clienteId: cliente.id,
-        aparelhoTipo: parsed.data.aparelho.tipo,
-        aparelhoDescricao: parsed.data.aparelho.descricao || null,
-        defeitoRelatado: parsed.data.defeitoRelatado,
-        status: "Recebido",
-        statusAlteradoEm: new Date(),
-        requestId: parsed.data.requestId,
-      },
+      await gravarIdempotencia(tx, parsed.data.requestId, "criarOs", {
+        numero: criada.numeroSequencial,
+      });
+
+      return { ok: true as const, data: { numero: criada.numeroSequencial } };
     });
 
-    await gravarIdempotencia(tx, parsed.data.requestId, "criarOs", {
-      numero: criada.numeroSequencial,
-    });
-
-    return { ok: true as const, data: { numero: criada.numeroSequencial } };
-  });
-
-  // Next 16: updateTag em vez de revalidateTag em Server Actions
-  // ("read-your-own-writes" — query subsequente vê o dado novo imediatamente).
-  updateTag("os");
-  return result;
+    // Next 16: updateTag em vez de revalidateTag em Server Actions
+    // ("read-your-own-writes" — query subsequente vê o dado novo imediatamente).
+    updateTag("os");
+    return result;
+  } catch (erro) {
+    log.error("criarOs.erro", erro, { requestId: parsed.data.requestId });
+    return {
+      ok: false,
+      error: { code: "INTERNO", mensagem: "Erro interno ao processar a operação" },
+    };
+  }
 }

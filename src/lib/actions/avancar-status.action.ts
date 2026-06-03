@@ -16,6 +16,7 @@ import {
   podeTransicionar,
   type StatusOs,
 } from "@/lib/domain/status";
+import { log } from "@/lib/log";
 import {
   avancarStatusSchema,
   type AvancarStatusInputForm,
@@ -47,78 +48,87 @@ export async function avancarStatus(
     };
   }
 
-  const result = await db.$transaction(async (tx) => {
-    const visto = await verificarIdempotencia<{ status: StatusOs }>(
-      tx,
-      parsed.data.requestId,
-    );
-    if (visto) {
-      return { ok: true as const, data: visto };
-    }
+  try {
+    const result = await db.$transaction(async (tx) => {
+      const visto = await verificarIdempotencia<{ status: StatusOs }>(
+        tx,
+        parsed.data.requestId,
+        "avancarStatus",
+      );
+      if (visto) {
+        return { ok: true as const, data: visto };
+      }
 
-    const os = await tx.os.findUnique({
-      where: { numeroSequencial: parsed.data.numero },
-      select: { id: true, status: true, aprovadoEm: true },
+      const os = await tx.os.findUnique({
+        where: { numeroSequencial: parsed.data.numero },
+        select: { id: true, status: true, aprovadoEm: true },
+      });
+
+      if (!os) {
+        return {
+          ok: false as const,
+          error: { code: "NAO_ENCONTRADO" as const, entidade: "OS" },
+        };
+      }
+
+      const statusAtual = os.status as StatusOs;
+      const paraStatus = parsed.data.paraStatus;
+
+      if (!podeTransicionar(statusAtual, paraStatus)) {
+        return {
+          ok: false as const,
+          error: {
+            code: "CONFLITO" as const,
+            mensagem: "Transição inválida",
+          },
+        };
+      }
+
+      if (
+        ehTransicaoNaoNatural(statusAtual, paraStatus) &&
+        !parsed.data.confirmado
+      ) {
+        return {
+          ok: false as const,
+          error: {
+            code: "CONFLITO" as const,
+            mensagem: "Transição não-natural exige confirmação",
+          },
+        };
+      }
+
+      // FR-7: regra centralizada em domain (Story 2.2). A mensagem é
+      // observável pelo `<BotaoAvancarStatus />` (mostra inline) e pela UAT;
+      // não alterar o texto sem revisar callsites.
+      if (exigeAprovacao(statusAtual, paraStatus) && os.aprovadoEm === null) {
+        return {
+          ok: false as const,
+          error: {
+            code: "CONFLITO" as const,
+            mensagem: "Aprovação do orçamento é pré-requisito",
+          },
+        };
+      }
+
+      await alterarStatus(tx, os.id, paraStatus);
+      await gravarIdempotencia(tx, parsed.data.requestId, "avancarStatus", {
+        status: paraStatus,
+      });
+
+      return { ok: true as const, data: { status: paraStatus } };
     });
 
-    if (!os) {
-      return {
-        ok: false as const,
-        error: { code: "NAO_ENCONTRADO" as const, entidade: "OS" },
-      };
+    // updateTag fora da transação — read-your-own-writes Next 16. Só
+    // invalidar quando a mutação efetivamente ocorreu (ok === true).
+    if (result.ok) {
+      updateTag("os");
     }
-
-    const statusAtual = os.status as StatusOs;
-    const paraStatus = parsed.data.paraStatus;
-
-    if (!podeTransicionar(statusAtual, paraStatus)) {
-      return {
-        ok: false as const,
-        error: {
-          code: "CONFLITO" as const,
-          mensagem: "Transição inválida",
-        },
-      };
-    }
-
-    if (
-      ehTransicaoNaoNatural(statusAtual, paraStatus) &&
-      !parsed.data.confirmado
-    ) {
-      return {
-        ok: false as const,
-        error: {
-          code: "CONFLITO" as const,
-          mensagem: "Transição não-natural exige confirmação",
-        },
-      };
-    }
-
-    // FR-7: regra centralizada em domain (Story 2.2). A mensagem é
-    // observável pelo `<BotaoAvancarStatus />` (mostra inline) e pela UAT;
-    // não alterar o texto sem revisar callsites.
-    if (exigeAprovacao(statusAtual, paraStatus) && os.aprovadoEm === null) {
-      return {
-        ok: false as const,
-        error: {
-          code: "CONFLITO" as const,
-          mensagem: "Aprovação do orçamento é pré-requisito",
-        },
-      };
-    }
-
-    await alterarStatus(tx, os.id, paraStatus);
-    await gravarIdempotencia(tx, parsed.data.requestId, "avancarStatus", {
-      status: paraStatus,
-    });
-
-    return { ok: true as const, data: { status: paraStatus } };
-  });
-
-  // updateTag fora da transação — read-your-own-writes Next 16. Só
-  // invalidar quando a mutação efetivamente ocorreu (ok === true).
-  if (result.ok) {
-    updateTag("os");
+    return result;
+  } catch (erro) {
+    log.error("avancarStatus.erro", erro, { numero: parsed.data.numero });
+    return {
+      ok: false,
+      error: { code: "INTERNO", mensagem: "Erro interno ao processar a operação" },
+    };
   }
-  return result;
 }

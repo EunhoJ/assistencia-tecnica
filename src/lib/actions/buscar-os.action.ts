@@ -7,6 +7,7 @@ import type { EstadoPagamento } from "@/lib/domain/pagamento";
 import type { StatusOs } from "@/lib/domain/status";
 import { normalizarTelefone } from "@/lib/format/telefone";
 import { escaparLike, normalizarTexto } from "@/lib/format/texto";
+import { log } from "@/lib/log";
 import type { OsResumo } from "@/lib/queries/listar-os-dashboard";
 import { buscaOsSchema, type BuscaOsInput } from "@/lib/schemas/os.schema";
 
@@ -42,48 +43,56 @@ export async function buscarOs(
     };
   }
 
-  const tel = normalizarTelefone(parsed.data.query);
-  const nome = normalizarTexto(parsed.data.query.trim());
-  const nomeLike = escaparLike(nome);
+  try {
+    const tel = normalizarTelefone(parsed.data.query);
+    const nome = normalizarTexto(parsed.data.query.trim());
+    const nomeLike = escaparLike(nome);
 
-  const rows = await db.$queryRaw<RawRow[]>`
-    SELECT
-      o.id,
-      o.numero_sequencial AS "numeroSequencial",
-      c.nome AS "clienteNome",
-      o.aparelho_tipo AS "aparelhoTipo",
-      o.aparelho_descricao AS "aparelhoDescricao",
-      o.status,
-      o.estado_pagamento AS "estadoPagamento",
-      o.criado_em AS "criadoEm"
-    FROM os o
-    JOIN cliente c ON c.id = o.cliente_id
-    WHERE o.deletado_em IS NULL
-      AND c.deletado_em IS NULL
-      AND (
-        (length(${tel}) >= 4 AND c.telefone_normalizado LIKE '%' || ${tel} || '%')
-        OR
-        (length(${nome}) >= 1 AND lower(public.f_unaccent(c.nome)) LIKE ${nomeLike} || '%')
-      )
-    ORDER BY
-      CASE
-        WHEN length(${tel}) >= 4 AND c.telefone_normalizado LIKE '%' || ${tel} || '%' THEN 1
-        ELSE 2
-      END,
-      o.criado_em DESC
-    LIMIT 50
-  `;
+    const rows = await db.$queryRaw<RawRow[]>`
+      SELECT
+        o.id,
+        o.numero_sequencial AS "numeroSequencial",
+        c.nome AS "clienteNome",
+        o.aparelho_tipo AS "aparelhoTipo",
+        o.aparelho_descricao AS "aparelhoDescricao",
+        o.status,
+        o.estado_pagamento AS "estadoPagamento",
+        o.criado_em AS "criadoEm"
+      FROM os o
+      JOIN cliente c ON c.id = o.cliente_id
+      WHERE o.deletado_em IS NULL
+        AND c.deletado_em IS NULL
+        AND (
+          (length(${tel}) >= 4 AND c.telefone_normalizado LIKE '%' || ${tel} || '%')
+          OR
+          (length(${nome}) >= 1 AND lower(public.f_unaccent(c.nome)) LIKE ${nomeLike} || '%')
+        )
+      ORDER BY
+        CASE
+          WHEN length(${tel}) >= 4 AND c.telefone_normalizado LIKE '%' || ${tel} || '%' THEN 1
+          ELSE 2
+        END,
+        o.criado_em DESC
+      LIMIT 50
+    `;
 
-  const data: OsResumo[] = rows.map((r) => ({
-    id: r.id.toString(),
-    numeroSequencial: r.numeroSequencial,
-    clienteNome: r.clienteNome,
-    aparelhoTipo: r.aparelhoTipo,
-    aparelhoDescricao: r.aparelhoDescricao,
-    status: r.status as StatusOs,
-    estadoPagamento: r.estadoPagamento as EstadoPagamento,
-    criadoEm: r.criadoEm,
-  }));
+    const data: OsResumo[] = rows.map((r) => ({
+      id: r.id.toString(),
+      numeroSequencial: r.numeroSequencial,
+      clienteNome: r.clienteNome,
+      aparelhoTipo: r.aparelhoTipo,
+      aparelhoDescricao: r.aparelhoDescricao,
+      status: r.status as StatusOs,
+      estadoPagamento: r.estadoPagamento as EstadoPagamento,
+      criadoEm: r.criadoEm,
+    }));
 
-  return { ok: true, data };
+    return { ok: true, data };
+  } catch (erro) {
+    log.error("buscarOs.erro", erro);
+    return {
+      ok: false,
+      error: { code: "INTERNO", mensagem: "Erro interno ao processar a operação" },
+    };
+  }
 }

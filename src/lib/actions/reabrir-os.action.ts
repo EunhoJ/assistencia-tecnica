@@ -15,6 +15,7 @@ import {
   type DecisaoPagamento,
 } from "@/lib/domain/pagamento";
 import { ehTerminal, podeReabrirPara, type StatusOs } from "@/lib/domain/status";
+import { log } from "@/lib/log";
 import {
   reabrirOsSchema,
   type ReabrirOsInputForm,
@@ -44,94 +45,102 @@ export async function reabrirOs(
     };
   }
 
-  const result = await db.$transaction(async (tx) => {
-    const visto = await verificarIdempotencia<{
-      paraStatus: StatusOs;
-      decisaoPagamento: DecisaoPagamento | null;
-    }>(tx, parsed.data.requestId);
-    if (visto) {
-      return { ok: true as const, data: visto };
-    }
+  try {
+    const result = await db.$transaction(async (tx) => {
+      const visto = await verificarIdempotencia<{
+        paraStatus: StatusOs;
+        decisaoPagamento: DecisaoPagamento | null;
+      }>(tx, parsed.data.requestId, "reabrirOs");
+      if (visto) {
+        return { ok: true as const, data: visto };
+      }
 
-    const os = await tx.os.findUnique({
-      where: { numeroSequencial: parsed.data.numero },
-      select: { id: true, status: true, estadoPagamento: true, pagoEm: true },
-    });
-
-    if (!os) {
-      return {
-        ok: false as const,
-        error: { code: "NAO_ENCONTRADO" as const, entidade: "OS" },
-      };
-    }
-
-    const statusAtual = os.status as StatusOs;
-
-    if (!ehTerminal(statusAtual)) {
-      return {
-        ok: false as const,
-        error: {
-          code: "CONFLITO" as const,
-          mensagem: "OS não está em status terminal",
-        },
-      };
-    }
-
-    if (!podeReabrirPara(statusAtual, parsed.data.paraStatus)) {
-      return {
-        ok: false as const,
-        error: {
-          code: "CONFLITO" as const,
-          mensagem: "Destino de reabertura inválido",
-        },
-      };
-    }
-
-    const tinhaPago = os.estadoPagamento === "Pago" && os.pagoEm !== null;
-    if (tinhaPago && !parsed.data.decisaoPagamento) {
-      return {
-        ok: false as const,
-        error: {
-          code: "VALIDACAO" as const,
-          campos: { decisaoPagamento: "obrigatória" },
-        },
-      };
-    }
-
-    await alterarStatus(tx, os.id, parsed.data.paraStatus);
-
-    if (tinhaPago && parsed.data.decisaoPagamento) {
-      const { novoEstado, novoPagoEm } = resolverHistoricoPagamento(
-        { pagoEm: os.pagoEm },
-        parsed.data.decisaoPagamento,
-      );
-      await tx.os.update({
-        where: { id: os.id },
-        data: {
-          estadoPagamento: novoEstado,
-          pagoEm: novoPagoEm,
-          // Reverter limpa a forma; manter não toca.
-          ...(novoEstado === "Pago" ? {} : { formaPagamento: null }),
-        },
+      const os = await tx.os.findUnique({
+        where: { numeroSequencial: parsed.data.numero },
+        select: { id: true, status: true, estadoPagamento: true, pagoEm: true },
       });
-    }
 
-    await gravarIdempotencia(tx, parsed.data.requestId, "reabrirOs", {
-      paraStatus: parsed.data.paraStatus,
-      decisaoPagamento: parsed.data.decisaoPagamento ?? null,
-    });
+      if (!os) {
+        return {
+          ok: false as const,
+          error: { code: "NAO_ENCONTRADO" as const, entidade: "OS" },
+        };
+      }
 
-    return {
-      ok: true as const,
-      data: {
+      const statusAtual = os.status as StatusOs;
+
+      if (!ehTerminal(statusAtual)) {
+        return {
+          ok: false as const,
+          error: {
+            code: "CONFLITO" as const,
+            mensagem: "OS não está em status terminal",
+          },
+        };
+      }
+
+      if (!podeReabrirPara(statusAtual, parsed.data.paraStatus)) {
+        return {
+          ok: false as const,
+          error: {
+            code: "CONFLITO" as const,
+            mensagem: "Destino de reabertura inválido",
+          },
+        };
+      }
+
+      const tinhaPago = os.estadoPagamento === "Pago" && os.pagoEm !== null;
+      if (tinhaPago && !parsed.data.decisaoPagamento) {
+        return {
+          ok: false as const,
+          error: {
+            code: "VALIDACAO" as const,
+            campos: { decisaoPagamento: "obrigatória" },
+          },
+        };
+      }
+
+      await alterarStatus(tx, os.id, parsed.data.paraStatus);
+
+      if (tinhaPago && parsed.data.decisaoPagamento) {
+        const { novoEstado, novoPagoEm } = resolverHistoricoPagamento(
+          { pagoEm: os.pagoEm },
+          parsed.data.decisaoPagamento,
+        );
+        await tx.os.update({
+          where: { id: os.id },
+          data: {
+            estadoPagamento: novoEstado,
+            pagoEm: novoPagoEm,
+            // Reverter limpa a forma; manter não toca.
+            ...(novoEstado === "Pago" ? {} : { formaPagamento: null }),
+          },
+        });
+      }
+
+      await gravarIdempotencia(tx, parsed.data.requestId, "reabrirOs", {
         paraStatus: parsed.data.paraStatus,
         decisaoPagamento: parsed.data.decisaoPagamento ?? null,
-      },
-    };
-  });
+      });
 
-  if (result.ok) {
-    updateTag("os");
+      return {
+        ok: true as const,
+        data: {
+          paraStatus: parsed.data.paraStatus,
+          decisaoPagamento: parsed.data.decisaoPagamento ?? null,
+        },
+      };
+    });
+
+    if (result.ok) {
+      updateTag("os");
+    }
+    return result;
+  } catch (erro) {
+    log.error("reabrirOs.erro", erro, { numero: parsed.data.numero });
+    return {
+      ok: false,
+      error: { code: "INTERNO", mensagem: "Erro interno ao processar a operação" },
+    };
   }
-  return result;
 }

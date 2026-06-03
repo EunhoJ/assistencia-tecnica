@@ -39,16 +39,19 @@ export function fieldsFromZod(error: ZodError): Record<string, string> {
 }
 
 /**
- * Procura uma resposta já gravada para o `requestId`. Se encontrar,
- * devolve a resposta como `T` (caller decidiu o shape). Se não, `null`.
+ * Procura uma resposta já gravada para o `requestId` E a `action`. Se
+ * encontrar, devolve a resposta como `T` (caller decidiu o shape). Se não
+ * (ou se o `requestId` pertencer a OUTRA action — colisão), `null`.
+ * Filtrar por `action` evita devolver o payload de uma entidade diferente.
  * Use dentro do mesmo `db.$transaction` que cria a entidade alvo.
  */
 export async function verificarIdempotencia<T>(
   db: DbCliente,
   requestId: string,
+  action: string,
 ): Promise<T | null> {
   const found = await db.actionLog.findUnique({ where: { requestId } });
-  if (!found) return null;
+  if (!found || found.action !== action) return null;
   return found.payloadRespostaJson as T;
 }
 

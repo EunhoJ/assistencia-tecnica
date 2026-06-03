@@ -10,6 +10,7 @@ import {
 import type { ActionResult } from "@/lib/actions/types";
 import { db } from "@/lib/db/client";
 import type { EstadoPagamento } from "@/lib/domain/pagamento";
+import { log } from "@/lib/log";
 import {
   registrarPagamentoSchema,
   type RegistrarPagamentoInputForm,
@@ -44,69 +45,77 @@ export async function registrarPagamento(
     };
   }
 
-  const result = await db.$transaction(async (tx) => {
-    const visto = await verificarIdempotencia<{
-      estado: EstadoPagamento;
-      pagoEm: string | null;
-    }>(tx, parsed.data.requestId);
-    if (visto) {
+  try {
+    const result = await db.$transaction(async (tx) => {
+      const visto = await verificarIdempotencia<{
+        estado: EstadoPagamento;
+        pagoEm: string | null;
+      }>(tx, parsed.data.requestId, "registrarPagamento");
+      if (visto) {
+        return {
+          ok: true as const,
+          data: {
+            estado: visto.estado,
+            pagoEm: visto.pagoEm ? new Date(visto.pagoEm) : null,
+          },
+        };
+      }
+
+      const os = await tx.os.findUnique({
+        where: { numeroSequencial: parsed.data.numero },
+        select: { id: true, pagoEm: true },
+      });
+
+      if (!os) {
+        return {
+          ok: false as const,
+          error: { code: "NAO_ENCONTRADO" as const, entidade: "OS" },
+        };
+      }
+
+      // `pago_em` só é preenchido na primeira vez que vira Pago. Nunca limpa,
+      // nunca sobrescreve um timestamp existente.
+      const preencherPagoEm =
+        parsed.data.estadoPagamento === "Pago" && os.pagoEm === null;
+
+      // Forma só faz sentido quando Pago — limpar nos demais estados.
+      const forma =
+        parsed.data.estadoPagamento === "Pago" ? parsed.data.formaPagamento : null;
+
+      const atualizada = await tx.os.update({
+        where: { id: os.id },
+        data: {
+          valorCobradoCentavos: parsed.data.valorCobradoCentavos,
+          estadoPagamento: parsed.data.estadoPagamento,
+          formaPagamento: forma,
+          ...(preencherPagoEm ? { pagoEm: new Date() } : {}),
+        },
+        select: { estadoPagamento: true, pagoEm: true },
+      });
+
+      await gravarIdempotencia(tx, parsed.data.requestId, "registrarPagamento", {
+        estado: atualizada.estadoPagamento,
+        pagoEm: atualizada.pagoEm ? atualizada.pagoEm.toISOString() : null,
+      });
+
       return {
         ok: true as const,
         data: {
-          estado: visto.estado,
-          pagoEm: visto.pagoEm ? new Date(visto.pagoEm) : null,
+          estado: atualizada.estadoPagamento as EstadoPagamento,
+          pagoEm: atualizada.pagoEm,
         },
       };
+    });
+
+    if (result.ok) {
+      updateTag("os");
     }
-
-    const os = await tx.os.findUnique({
-      where: { numeroSequencial: parsed.data.numero },
-      select: { id: true, pagoEm: true },
-    });
-
-    if (!os) {
-      return {
-        ok: false as const,
-        error: { code: "NAO_ENCONTRADO" as const, entidade: "OS" },
-      };
-    }
-
-    // `pago_em` só é preenchido na primeira vez que vira Pago. Nunca limpa,
-    // nunca sobrescreve um timestamp existente.
-    const preencherPagoEm =
-      parsed.data.estadoPagamento === "Pago" && os.pagoEm === null;
-
-    // Forma só faz sentido quando Pago — limpar nos demais estados.
-    const forma =
-      parsed.data.estadoPagamento === "Pago" ? parsed.data.formaPagamento : null;
-
-    const atualizada = await tx.os.update({
-      where: { id: os.id },
-      data: {
-        valorCobradoCentavos: parsed.data.valorCobradoCentavos,
-        estadoPagamento: parsed.data.estadoPagamento,
-        formaPagamento: forma,
-        ...(preencherPagoEm ? { pagoEm: new Date() } : {}),
-      },
-      select: { estadoPagamento: true, pagoEm: true },
-    });
-
-    await gravarIdempotencia(tx, parsed.data.requestId, "registrarPagamento", {
-      estado: atualizada.estadoPagamento,
-      pagoEm: atualizada.pagoEm ? atualizada.pagoEm.toISOString() : null,
-    });
-
+    return result;
+  } catch (erro) {
+    log.error("registrarPagamento.erro", erro, { numero: parsed.data.numero });
     return {
-      ok: true as const,
-      data: {
-        estado: atualizada.estadoPagamento as EstadoPagamento,
-        pagoEm: atualizada.pagoEm,
-      },
+      ok: false,
+      error: { code: "INTERNO", mensagem: "Erro interno ao processar a operação" },
     };
-  });
-
-  if (result.ok) {
-    updateTag("os");
   }
-  return result;
 }

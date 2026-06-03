@@ -9,6 +9,7 @@ import {
 } from "@/lib/actions/helpers";
 import type { ActionResult } from "@/lib/actions/types";
 import { db } from "@/lib/db/client";
+import { log } from "@/lib/log";
 import {
   atualizarConfigSchema,
   type AtualizarConfigInputForm,
@@ -33,35 +34,44 @@ export async function atualizarConfig(
     };
   }
 
-  const result = await db.$transaction(async (tx) => {
-    const visto = await verificarIdempotencia<{ limiarDiasParados: number }>(
-      tx,
-      parsed.data.requestId,
-    );
-    if (visto) {
-      return { ok: true as const, data: visto };
+  try {
+    const result = await db.$transaction(async (tx) => {
+      const visto = await verificarIdempotencia<{ limiarDiasParados: number }>(
+        tx,
+        parsed.data.requestId,
+        "atualizarConfig",
+      );
+      if (visto) {
+        return { ok: true as const, data: visto };
+      }
+
+      const atualizada = await tx.config.upsert({
+        where: { id: 1 },
+        create: { id: 1, limiarDiasParados: parsed.data.limiarDiasParados },
+        update: { limiarDiasParados: parsed.data.limiarDiasParados },
+        select: { limiarDiasParados: true },
+      });
+
+      await gravarIdempotencia(tx, parsed.data.requestId, "atualizarConfig", {
+        limiarDiasParados: atualizada.limiarDiasParados,
+      });
+
+      return {
+        ok: true as const,
+        data: { limiarDiasParados: atualizada.limiarDiasParados },
+      };
+    });
+
+    if (result.ok) {
+      updateTag("config");
+      updateTag("aparelhos-parados");
     }
-
-    const atualizada = await tx.config.upsert({
-      where: { id: 1 },
-      create: { id: 1, limiarDiasParados: parsed.data.limiarDiasParados },
-      update: { limiarDiasParados: parsed.data.limiarDiasParados },
-      select: { limiarDiasParados: true },
-    });
-
-    await gravarIdempotencia(tx, parsed.data.requestId, "atualizarConfig", {
-      limiarDiasParados: atualizada.limiarDiasParados,
-    });
-
+    return result;
+  } catch (erro) {
+    log.error("atualizarConfig.erro", erro, { requestId: parsed.data.requestId });
     return {
-      ok: true as const,
-      data: { limiarDiasParados: atualizada.limiarDiasParados },
+      ok: false,
+      error: { code: "INTERNO", mensagem: "Erro interno ao processar a operação" },
     };
-  });
-
-  if (result.ok) {
-    updateTag("config");
-    updateTag("aparelhos-parados");
   }
-  return result;
 }
