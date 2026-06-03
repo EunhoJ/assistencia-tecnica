@@ -178,3 +178,15 @@ export const reabrirOsSchema = z.object({
 
 export type ReabrirOsInput = z.infer<typeof reabrirOsSchema>;
 export type ReabrirOsInputForm = z.input<typeof reabrirOsSchema>;
+
+// ============================================================================
+// Busca global de OS por nome/telefone (Story 4.1 / FR-16 + FR-17)
+// ============================================================================
+
+// `query` é texto livre — a action decide internamente se interpreta como nome
+// (prefixo, accent-insensitive) e/ou telefone (substring de dígitos, ≥4).
+export const buscaOsSchema = z.object({
+  query: z.string().min(1, "query é obrigatória").max(80),
+});
+
+export type BuscaOsInput = z.infer<typeof buscaOsSchema>;
