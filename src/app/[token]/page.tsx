@@ -1,11 +1,14 @@
 import Link from "next/link";
 
 import { OsCard } from "@/components/os/os-card";
+import { BuscaGlobal } from "@/components/shared/busca-global";
 import { Button } from "@/components/ui/button";
-import { listarOsDashboard } from "@/lib/queries/listar-os-dashboard";
+import { listarOsDashboard, toOsResumo } from "@/lib/queries/listar-os-dashboard";
 
-// Dashboard: lista as 20 OSs mais recentes. Server Component.
-// Soft-deleted são ocultadas automaticamente pela extension da Story 1.3.
+// Dashboard: campo de busca global (Story 4.1) + lista das 20 OSs mais recentes.
+// Server Component. Soft-deleted ocultadas automaticamente pela extension (1.3).
+// A lista recente entra como `children` de <BuscaGlobal>; quando há busca ativa
+// o client a substitui pelos resultados.
 
 export default async function Dashboard({
   params,
@@ -13,9 +16,9 @@ export default async function Dashboard({
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
-  const oss = await listarOsDashboard();
+  const recentes = (await listarOsDashboard()).map(toOsResumo);
 
-  if (oss.length === 0) {
+  if (recentes.length === 0) {
     return (
       <section className="mx-auto flex max-w-2xl flex-col items-center justify-center gap-8 px-4 py-24 text-center">
         <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
@@ -40,13 +43,15 @@ export default async function Dashboard({
         </Button>
       </div>
 
-      <ul className="flex flex-col gap-3">
-        {oss.map((os) => (
-          <li key={os.id.toString()}>
-            <OsCard os={os} token={token} />
-          </li>
-        ))}
-      </ul>
+      <BuscaGlobal token={token}>
+        <ul className="flex flex-col gap-3">
+          {recentes.map((os) => (
+            <li key={os.id}>
+              <OsCard os={os} token={token} />
+            </li>
+          ))}
+        </ul>
+      </BuscaGlobal>
     </section>
   );
 }
