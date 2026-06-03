@@ -1,4 +1,4 @@
-import { Pencil, Phone } from "lucide-react";
+import { History, Pencil, Phone } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -125,6 +125,13 @@ export default async function OsDetalhePage({
               <Phone className="size-4" />
               {telefoneFormatado}
             </a>
+            <Link
+              href={`/${token}/clientes/${os.cliente.id.toString()}`}
+              className="text-primary hover:bg-muted/50 flex min-h-[44px] items-center gap-2 self-start rounded-md px-2 -mx-2 underline-offset-4 hover:underline"
+            >
+              <History className="size-4" />
+              Ver histórico
+            </Link>
           </CardContent>
         </Card>
 
