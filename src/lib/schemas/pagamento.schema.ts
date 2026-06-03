@@ -24,7 +24,14 @@ export const FORMA_PAGAMENTO_VALORES = [
 export const registrarPagamentoSchema = z
   .object({
     numero: z.number().int().positive("número da OS inválido"),
-    valorCobradoCentavos: z.number().int().nonnegative().nullable(),
+    // Teto = máximo de um INTEGER Postgres (coluna valor_cobrado_centavos).
+    // Sem ele, um valor enorme estoura a coluna ou perde precisão (≈ R$ 21M).
+    valorCobradoCentavos: z
+      .number()
+      .int()
+      .nonnegative()
+      .max(2_147_483_647)
+      .nullable(),
     estadoPagamento: z.enum(ESTADO_PAGAMENTO_VALORES),
     formaPagamento: z.enum(FORMA_PAGAMENTO_VALORES).nullable(),
     requestId: z.string().uuid("requestId inválido"),
@@ -35,6 +42,19 @@ export const registrarPagamentoSchema = z
         code: "custom",
         path: ["formaPagamento"],
         message: "Forma de pagamento é obrigatória quando Pago",
+      });
+    }
+    // Pago implica que houve cobrança concretizada — valor > 0 obrigatório
+    // (estado "Sem_cobranca" cobre o caso sem valor). Sem isso, uma OS entra
+    // como Paga de R$ 0,00 no Resumo financeiro.
+    if (
+      val.estadoPagamento === "Pago" &&
+      (val.valorCobradoCentavos === null || val.valorCobradoCentavos <= 0)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["valorCobradoCentavos"],
+        message: "Valor cobrado é obrigatório quando Pago",
       });
     }
   });

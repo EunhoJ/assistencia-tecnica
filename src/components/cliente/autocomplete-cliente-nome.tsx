@@ -93,7 +93,8 @@ export function AutocompleteClienteNome({
       setIndexHover((i) => (i <= 0 ? sugestoes.length - 1 : i - 1));
     } else if (e.key === "Enter" && indexHover >= 0) {
       e.preventDefault();
-      selecionar(sugestoes[indexHover]!);
+      const escolha = sugestoes[indexHover];
+      if (escolha) selecionar(escolha);
     } else if (e.key === "Escape") {
       e.preventDefault();
       setAberto(false);

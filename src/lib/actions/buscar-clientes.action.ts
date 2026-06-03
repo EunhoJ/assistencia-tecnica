@@ -4,7 +4,7 @@ import { fieldsFromZod } from "@/lib/actions/helpers";
 import type { ActionResult } from "@/lib/actions/types";
 import { db } from "@/lib/db/client";
 import { normalizarTelefone } from "@/lib/format/telefone";
-import { normalizarTexto } from "@/lib/format/texto";
+import { escaparLike, normalizarTexto } from "@/lib/format/texto";
 import {
   buscarClientesSchema,
   type BuscarClientesInput,
@@ -36,6 +36,7 @@ export async function buscarClientes(
 
   const tel = normalizarTelefone(parsed.data.query);
   const nome = normalizarTexto(parsed.data.query);
+  const nomeLike = escaparLike(nome);
   const limite = parsed.data.limite;
 
   const rows = await db.$queryRaw<
@@ -51,7 +52,7 @@ export async function buscarClientes(
       AND (
         (length(${tel}) >= 4 AND telefone_normalizado LIKE ${tel} || '%')
         OR
-        (length(${nome}) >= 2 AND lower(public.f_unaccent(nome)) LIKE ${nome} || '%')
+        (length(${nome}) >= 2 AND lower(public.f_unaccent(nome)) LIKE ${nomeLike} || '%')
       )
     ORDER BY
       CASE

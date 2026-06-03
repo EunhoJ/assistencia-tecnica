@@ -10,3 +10,11 @@ export function normalizarTexto(s: string): string {
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase();
 }
+
+// Escapa os metacaracteres de LIKE (`%`, `_`, `\`) para uso seguro como padrão
+// em `$queryRaw`. Sem isso, digitar `%`/`_` na busca vira wildcard e casa
+// clientes/OSs indevidos. Postgres usa `\` como escape default do LIKE, então
+// o valor escapado (ex.: `a\%`) casa o literal `a%`.
+export function escaparLike(s: string): string {
+  return s.replace(/[\\%_]/g, "\\$&");
+}

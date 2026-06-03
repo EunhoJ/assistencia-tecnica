@@ -41,7 +41,7 @@ export function ResumoFinanceiroMes({
 }) {
   const { ano, mes, atual, delta } = resumo;
   const anterior = mesAnteriorDe(ano, mes);
-  const positivo = delta.absoluto >= 0;
+  const positivo = delta.absoluto > 0;
 
   return (
     <section className="mx-auto max-w-2xl px-4 py-8">
@@ -76,6 +76,10 @@ export function ResumoFinanceiroMes({
             {delta.percentual === null ? (
               <span className="text-muted-foreground">
                 Sem comparativo com {formatMesAno(anterior.ano, anterior.mes)}
+              </span>
+            ) : delta.absoluto === 0 ? (
+              <span className="text-muted-foreground">
+                Igual a {formatMesAno(anterior.ano, anterior.mes)}
               </span>
             ) : (
               <span
@@ -114,7 +118,7 @@ export function ResumoFinanceiroMes({
                   <div className="bg-muted mt-2 h-2 w-full overflow-hidden rounded-full">
                     <div
                       className="bg-primary h-full rounded-full"
-                      style={{ width: `${b.percentual}%` }}
+                      style={{ width: `${Math.min(100, b.percentual)}%` }}
                     />
                   </div>
                 </li>

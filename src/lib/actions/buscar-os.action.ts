@@ -6,7 +6,7 @@ import { db } from "@/lib/db/client";
 import type { EstadoPagamento } from "@/lib/domain/pagamento";
 import type { StatusOs } from "@/lib/domain/status";
 import { normalizarTelefone } from "@/lib/format/telefone";
-import { normalizarTexto } from "@/lib/format/texto";
+import { escaparLike, normalizarTexto } from "@/lib/format/texto";
 import type { OsResumo } from "@/lib/queries/listar-os-dashboard";
 import { buscaOsSchema, type BuscaOsInput } from "@/lib/schemas/os.schema";
 
@@ -44,6 +44,7 @@ export async function buscarOs(
 
   const tel = normalizarTelefone(parsed.data.query);
   const nome = normalizarTexto(parsed.data.query.trim());
+  const nomeLike = escaparLike(nome);
 
   const rows = await db.$queryRaw<RawRow[]>`
     SELECT
@@ -62,7 +63,7 @@ export async function buscarOs(
       AND (
         (length(${tel}) >= 4 AND c.telefone_normalizado LIKE '%' || ${tel} || '%')
         OR
-        (length(${nome}) >= 1 AND lower(public.f_unaccent(c.nome)) LIKE ${nome} || '%')
+        (length(${nome}) >= 1 AND lower(public.f_unaccent(c.nome)) LIKE ${nomeLike} || '%')
       )
     ORDER BY
       CASE
