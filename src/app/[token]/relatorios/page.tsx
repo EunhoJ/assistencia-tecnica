@@ -1,8 +1,8 @@
-import { HandCoins, PackageSearch } from "lucide-react";
+import { HandCoins, PackageSearch, Wallet } from "lucide-react";
 import Link from "next/link";
 
 // Hub de Relatórios (Story 3.2). "Devolvido não pago" (FR-13) + "Aparelhos
-// parados" (FR-14, Story 3.3). A Story 3.4 (Resumo financeiro) adiciona o seu.
+// parados" (FR-14, Story 3.3) + "Resumo financeiro" (FR-15, Story 3.4).
 
 export default async function RelatoriosPage({
   params,
@@ -37,6 +37,19 @@ export default async function RelatoriosPage({
           <span className="block font-medium">Aparelhos parados</span>
           <span className="text-muted-foreground text-sm">
             OSs ativas travadas há muito tempo no mesmo status
+          </span>
+        </span>
+      </Link>
+
+      <Link
+        href={`/${token}/relatorios/resumo-financeiro`}
+        className="hover:bg-muted/50 flex min-h-[44px] items-center gap-3 rounded-md border px-4 py-3"
+      >
+        <Wallet className="size-5" />
+        <span>
+          <span className="block font-medium">Resumo financeiro</span>
+          <span className="text-muted-foreground text-sm">
+            Quanto faturou no mês, com comparativo
           </span>
         </span>
       </Link>
